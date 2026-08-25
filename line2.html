@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>転がるシャー芯</title>
+  <title>リアルに転がるシャー芯</title>
   <style>
     :root {
       --bg-color: #f5f5f7;
@@ -25,31 +25,33 @@
       justify-content: center;
       align-items: center;
       user-select: none;
+      touch-action: none;
     }
 
     .viewport {
       width: 100vw;
       height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       position: relative;
+      overflow: hidden;
     }
 
-    /* 1px幅・1px影の線 */
+    /* 1px太さ・1px影の棒 */
     .target-line {
-      width: 40%;
+      width: 120px;
       height: 1px;
       background-color: var(--line-color);
       box-shadow: 0px 1px 0px var(--shadow-color);
       position: absolute;
+      top: 0;
+      left: 0;
       will-change: transform;
     }
 
-    /* 許可ボタン / 警告メッセージ */
     .sensor-btn {
       position: absolute;
       top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       padding: 12px 24px;
       background: #007aff;
       color: #fff;
@@ -65,6 +67,8 @@
     .error-msg {
       position: absolute;
       top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       padding: 10px 16px;
       background: rgba(255, 59, 48, 0.9);
       color: #fff;
@@ -73,6 +77,7 @@
       z-index: 100;
       display: none;
       text-align: center;
+      width: 80%;
     }
   </style>
 </head>
@@ -86,68 +91,115 @@
   </div>
 
   <script>
-    let posX = 0;
-    let velocity = 0;
-    let rotation = 0;
-    let tiltGamma = 0;
-
-    const friction = 0.95;   // 摩擦
-    const accelFactor = 0.25; // 感度
-
     const line = document.getElementById('line');
     const viewport = document.getElementById('viewport');
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // 物理演算＆アニメーション（物理計算のみで描画）
+    // 物理パラメータ
+    let posX = viewport.clientWidth / 2 - 60;
+    let posY = viewport.clientHeight / 2;
+    let vx = 0;
+    let vy = 0;
+    let angle = 0;        // 棒自体の向き(ラジアン)
+    let angularVel = 0; // 向きの回転速度
+    let rollAngle = 0;  // 軸周りのコロコロ回転(度)
+
+    let tiltX = 0; // 左右の加速度
+    let tiltY = 0; // 前後の加速度
+
+    const friction = 0.97;      // 空気・転がり抵抗
+    const bounce = -0.4;        // 壁との反発係数
+    const gravityScale = 0.15;  // 傾き感度
+
+    // リアルな物理シミュレーション描画ループ
     function animate() {
-      const maxDistance = (viewport.clientWidth - line.clientWidth) / 2;
+      const lineLength = 120;
+      const screenW = viewport.clientWidth;
+      const screenH = viewport.clientHeight;
 
-      // 傾き(tiltGamma)による加速
-      velocity += tiltGamma * accelFactor;
-      velocity *= friction;
-      posX += velocity;
+      // 1. 傾きから加速度を加算 (X軸・Y軸)
+      vx += tiltX * gravityScale;
+      vy += tiltY * gravityScale;
 
-      // 転がり回転
-      rotation += velocity * 2;
+      // 2. 摩擦・抵抗の適用
+      vx *= friction;
+      vy *= friction;
 
-      // 壁での跳ね返り
-      if (posX > maxDistance) {
-        posX = maxDistance;
-        velocity *= -0.3;
-      } else if (posX < -maxDistance) {
-        posX = -maxDistance;
-        velocity *= -0.3;
+      // 3. 位置の更新
+      posX += vx;
+      posY += vy;
+
+      // 4. 移動速度に応じたリアルな軸回転 (コロコロ感)
+      const speed = Math.hypot(vx, vy);
+      rollAngle += speed * 3;
+
+      // 棒が移動方向にじわっと向きを変えるトルク計算
+      if (speed > 0.1) {
+        const moveAngle = Math.atan2(vy, vx);
+        let angleDiff = moveAngle - angle;
+        // 角度の正規化 (-PI ~ PI)
+        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+        angularVel += angleDiff * 0.02;
       }
+      angularVel *= 0.85; // 回転減衰
+      angle += angularVel;
 
-      line.style.transform = `translateX(${posX}px) rotate(${rotation}deg)`;
+      // 5. 画面端（四方の壁）との衝突判定
+      const halfL = lineLength / 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      // 端点の計算
+      const x1 = posX - halfL * cos;
+      const y1 = posY - halfL * sin;
+      const x2 = posX + halfL * cos;
+      const y2 = posY + halfL * sin;
+
+      // 壁（左右上下）との反発補正
+      if (x1 < 0 || x2 < 0) { posX = Math.max(posX, halfL * Math.abs(cos)); vx *= bounce; }
+      if (x1 > screenW || x2 > screenW) { posX = Math.min(posX, screenW - halfL * Math.abs(cos)); vx *= bounce; }
+      if (y1 < 0 || y2 < 0) { posY = Math.max(posY, halfL * Math.abs(sin)); vy *= bounce; }
+      if (y1 > screenH || y2 > screenH) { posY = Math.min(posY, screenH - halfL * Math.abs(sin)); vy *= bounce; }
+
+      // 6. トランスフォームの適用
+      line.style.transform = `translate(${posX}px, ${posY}px) rotate(${angle}rad) rotateX(${rollAngle}deg)`;
+
       requestAnimationFrame(animate);
     }
 
-    // 傾き検知処理
+    // 傾きセンサーの検知 (X軸: gamma, Y軸: beta)
     function handleOrientation(event) {
-      if (event.gamma !== null && event.gamma !== undefined) {
-        let g = event.gamma;
+      if (event.gamma !== null && event.beta !== null) {
+        let g = event.gamma; // 左右 (-90 ~ 90)
+        let b = event.beta;  // 前後 (-180 ~ 180)
 
-        // 画面の向き（縦持ち・横持ち）に応じた補正
+        // スマホの向き（画面回転）に応じた補正
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
-        if (orientation === 90) g = -event.beta;
-        else if (orientation === -90) g = event.beta;
+        if (orientation === 90) {
+          tiltX = -b;
+          tiltY = g;
+        } else if (orientation === -90) {
+          tiltX = b;
+          tiltY = -g;
+        } else {
+          tiltX = g;
+          tiltY = b;
+        }
 
-        // 傾き角度の制限 (-45度〜45度)
-        tiltGamma = Math.max(-45, Math.min(45, g));
+        // 急激な動きを抑えるクランプ処理
+        tiltX = Math.max(-45, Math.min(45, tiltX));
+        tiltY = Math.max(-45, Math.min(45, tiltY));
       }
     }
 
-    // センサー有効化処理
+    // センサーアクセス要求（iOS / Android対応）
     function enableSensor() {
-      // セキュアコンテキスト(HTTPS)チェック
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        showError('エラー: 傾きセンサーの起動には HTTPS 接続が必要です。');
+        showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
         return;
       }
 
-      // iOS 13+ 向けパーミッション要求
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(permissionState => {
@@ -155,16 +207,15 @@
               window.addEventListener('deviceorientation', handleOrientation, true);
               sensorBtn.style.display = 'none';
             } else {
-              showError('センサーのアクセスが拒否されました。設定から許可してください。');
+              showError('センサーへのアクセスが拒否されました。');
             }
           })
-          .catch(err => showError('センサーの起動に失敗しました。'));
+          .catch(() => showError('センサー起動エラーが発生しました。'));
       } else if (window.DeviceOrientationEvent) {
-        // Android / 標準ブラウザ向け
         window.addEventListener('deviceorientation', handleOrientation, true);
         sensorBtn.style.display = 'none';
       } else {
-        showError('お使いの端末・ブラウザは傾きセンサーに対応していません。');
+        showError('お使いの端末は傾きセンサーに対応していません。');
       }
     }
 
@@ -174,19 +225,9 @@
       sensorBtn.style.display = 'none';
     }
 
-    // イベント設定
     sensorBtn.addEventListener('click', enableSensor);
 
-    // Android等で自動でセンサーが取れる場合はボタンを消してそのまま開始
-    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') {
-      window.addEventListener('deviceorientation', handleOrientation, true);
-      // 一定時間後にセンサー値が入っていればボタンを隠す
-      setTimeout(() => {
-        if (tiltGamma !== 0) sensorBtn.style.display = 'none';
-      }, 500);
-    }
-
-    // アニメーションループ開始
+    // アニメーションループ起動
     requestAnimationFrame(animate);
   </script>
 </body>
