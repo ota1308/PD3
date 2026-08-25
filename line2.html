@@ -35,7 +35,6 @@
       overflow: hidden;
     }
 
-    /* 1px・1px影のシャー芯 */
     .target-line {
       width: 220px;
       height: 1px;
@@ -97,56 +96,58 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // 物理パラメータ調整（速度抑制・回転抑制）
     const lineLength = 220;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
     let vy = 0;
-    let angle = 0;        // 角度
-    let angularVel = 0; // 回転速度
+    let angle = 0;
+    let angularVel = 0;
 
     let tiltX = 0;
     let tiltY = 0;
 
-    // パラメータ：超低速＆回転制御
-    const friction = 0.90;       // 強い抵抗（滑り・転がりをすぐに減速）
-    const gravityScale = 0.02;   // 転がり速度をさらに低下（非常にゆったり動く）
-    const staticThreshold = 1.8; // 静止摩擦（小さく傾けた程度ではピタッと止まる）
+    // パラメータ：低感度・接地回転物理
+    const friction = 0.88;       // 高めの空気・転がり摩擦
+    const gravityScale = 0.008;  // ジャイロ感度をさらに低下（ゆったり動く）
+    const staticThreshold = 2.5; // 静止摩擦（小さく傾けても動かない）
 
     function animate() {
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      // 静止摩擦（小さな傾きは無視）
+      // 静止摩擦処理
       const forceX = Math.abs(tiltX) > staticThreshold ? tiltX * gravityScale : 0;
       const forceY = Math.abs(tiltY) > staticThreshold ? tiltY * gravityScale : 0;
 
-      // 1. 加速度の適用
+      // 1. 加速度と移動
       vx += forceX;
       vy += forceY;
-
-      // 2. 強い摩擦適用（低速維持）
       vx *= friction;
       vy *= friction;
 
-      // 3. 位置の更新
+      // 2. 「端（引っかかった側）」を軸にした回転トルク計算
+      const speed = Math.hypot(vx, vy);
+      if (speed > 0.05) {
+        // 棒のベクトル (cos, sin)
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        // 棒の向きと移動方向の外積から、左右どちらの端が接地・固定されるかを判定
+        const cross = cos * vy - sin * vx;
+
+        // 接地している端を軸に、傾きと移動の抵抗（摩擦トルク）を発生させる
+        angularVel += cross * 0.002;
+      }
+
+      angularVel *= 0.70; // 回転減衰
+      angle += angularVel;
+
+      // 支点（ピボット）がずれることによる位置補正
       posX += vx;
       posY += vy;
 
-      // 4. 回転（首振り）を最小限に抑える処理
-      const speed = Math.hypot(vx, vy);
-      if (speed > 0.1) {
-        const moveAngle = Math.atan2(vy, vx) + Math.PI / 2;
-        let angleDiff = moveAngle - angle;
-        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        // 回転トルクの係数を 0.03 から 0.005 に大幅引き下げ（ほとんど回転しないように）
-        angularVel += angleDiff * 0.005;
-      }
-      angularVel *= 0.75; // 回転減衰を強める
-      angle += angularVel;
-
-      // 5. 四方すべての画面外（マージン120px）設定
+      // 3. 四方画面外（マージン120px）制限
       const margin = 120;
       const minX = -margin;
       const maxX = screenW + margin;
@@ -158,17 +159,16 @@
       if (posY < minY) { posY = minY; vy = 0; }
       if (posY > maxY) { posY = maxY; vy = 0; }
 
-      // 6. 描画位置の四捨五入（チラつき防止のピクセル補正）
+      // 4. ピクセル・角度のクランプ描画（チラつき防止）
       const drawX = Math.round(posX - lineLength / 2);
       const drawY = Math.round(posY);
-      const drawAngle = Math.round(angle * 100) / 100; // 角度の精度を四捨五入
+      const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
 
       requestAnimationFrame(animate);
     }
 
-    // 傾き検知
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
         let g = event.gamma;
@@ -191,7 +191,6 @@
       }
     }
 
-    // センサー有効化
     function enableSensor() {
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
