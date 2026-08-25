@@ -6,9 +6,13 @@
   <title>リアルに転がるシャー芯</title>
   <style>
     :root {
-      --bg-color: #f5f5f7;
+      /* 棒（#111111）が絶対に見失われないコントラスト配色 */
+      --bg-color: #f4f5f7;
+      --card-bg: #ffffff;
+      --text-primary: #333333;
+      --text-secondary: #666666;
       --line-color: #111111;
-      --shadow-color: rgba(0, 0, 0, 0.35);
+      --shadow-color: rgba(0, 0, 0, 0.4);
     }
 
     * {
@@ -21,25 +25,81 @@
       background-color: var(--bg-color);
       height: 100vh;
       overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text-primary);
       user-select: none;
       touch-action: none;
     }
 
+    /* 背景のWebサイト風コンテンツレイアウト */
+    .site-background {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px 20px 60px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      opacity: 0.85; /* 棒の視認性を高めるため背景要素をややマイルドに */
+      pointer-events: none;
+    }
+
+    .site-header {
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 12px;
+      margin-top: 50px;
+    }
+
+    .site-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--text-primary);
+    }
+
+    .site-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .article-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e5e5e5;
+    }
+
+    .article-title {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #222222;
+    }
+
+    .article-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    /* 転がるシャー芯 */
     .viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100vw;
       height: 100vh;
-      position: relative;
       overflow: hidden;
+      z-index: 10;
     }
 
     .target-line {
       width: 220px;
       height: 1px;
       background-color: var(--line-color);
-      box-shadow: 0px 1px 0px var(--shadow-color);
+      box-shadow: 0px 1px 2px var(--shadow-color);
       position: absolute;
       top: 0;
       left: 0;
@@ -47,17 +107,18 @@
       backface-visibility: hidden;
     }
 
+    /* ボタン類 */
     .sensor-btn {
       position: absolute;
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 12px 24px;
+      padding: 10px 20px;
       background: #007aff;
       color: #fff;
       border: none;
       border-radius: 20px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: bold;
       z-index: 100;
       cursor: pointer;
@@ -83,9 +144,41 @@
 </head>
 <body>
 
+  <!-- 背景：Webサイト風デザイン -->
+  <div class="site-background">
+    <header class="site-header">
+      <div class="site-title">Sample Web Magazine</div>
+      <div class="site-subtitle">デザインとテクノロジーに関するニュース</div>
+    </header>
+
+    <main style="display: flex; flex-direction: column; gap: 12px;">
+      <article class="article-card">
+        <h2 class="article-title">モバイル端末における物理シミュレーション</h2>
+        <p class="article-text">
+          ジャイロセンサーを活用した表現は、ユーザーの直感的な操作感を高める効果があります。画面の傾きに正確に反応するオブジェクトは、心地よいインタラクションを生み出します。
+        </p>
+      </article>
+
+      <article class="article-card">
+        <h2 class="article-title">シンプルデザインと視認性の両立</h2>
+        <p class="article-text">
+          文字情報とグラフィック要素のコントラストを正しく設計することで、コンテンツの読みやすさを損なわずにインタラクティブな要素を配置することが可能になります。
+        </p>
+      </article>
+
+      <article class="article-card">
+        <h2 class="article-title">ウェブアクセシビリティの基本</h2>
+        <p class="article-text">
+          適切な配色とフォントサイズの選定は、すべてのユーザーにとって快適な閲覧体験を提供するための重要なステップです。
+        </p>
+      </article>
+    </main>
+  </div>
+
   <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
   <div class="error-msg" id="error-msg"></div>
 
+  <!-- 物理オブジェクト描写層 -->
   <div class="viewport" id="viewport">
     <div class="target-line" id="line"></div>
   </div>
@@ -109,15 +202,12 @@
 
     const friction = 0.92;         // 摩擦抵抗
     const baseSensitivity = 0.001; // 基本感度スケール
-    const exponent = 2.2;          // 傾きに応じた倍率指数（数値を上げるとより急激に加速）
+    const exponent = 2.2;          // 傾きに応じた倍率指数
     const staticThreshold = 1.5;   // 静止摩擦閾値
 
-    // 傾き角度から倍数的な加速度を計算する関数
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
       if (absTilt <= staticThreshold) return 0;
-
-      // 傾きの強さに応じて指数（2.2乗）関数的に数値を増加させる
       const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
       return Math.sign(tilt) * force;
     }
@@ -126,17 +216,14 @@
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      // 倍数的な加速度の計算
       const forceX = calculateExponentialForce(tiltX);
       const forceY = calculateExponentialForce(tiltY);
 
-      // 1. 加速度と移動
       vx += forceX;
       vy += forceY;
       vx *= friction;
       vy *= friction;
 
-      // 2. 接地端軸の回転トルク計算
       const speed = Math.hypot(vx, vy);
       if (speed > 0.05) {
         const cos = Math.cos(angle);
@@ -151,7 +238,6 @@
       posX += vx;
       posY += vy;
 
-      // 3. 四方画面外（マージン120px）制限
       const margin = 120;
       const minX = -margin;
       const maxX = screenW + margin;
@@ -163,7 +249,6 @@
       if (posY < minY) { posY = minY; vy = 0; }
       if (posY > maxY) { posY = maxY; vy = 0; }
 
-      // 4. ピクセル描画の四捨五入（チラつき防止）
       const drawX = Math.round(posX - lineLength / 2);
       const drawY = Math.round(posY);
       const drawAngle = Math.round(angle * 100) / 100;
