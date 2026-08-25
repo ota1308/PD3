@@ -107,10 +107,10 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // パラメータ：低感度・接地回転物理
-    const friction = 0.88;       // 高めの空気・転がり摩擦
-    const gravityScale = 0.008;  // ジャイロ感度をさらに低下（ゆったり動く）
-    const staticThreshold = 2.5; // 静止摩擦（小さく傾けても動かない）
+    // 中間のジャイロ感度に設定
+    const friction = 0.90;       // 空気・摩擦抵抗
+    const gravityScale = 0.025;  // 感度（前回の0.05と0.008の中間）
+    const staticThreshold = 1.8; // 静止摩擦閾値
 
     function animate() {
       const screenW = viewport.clientWidth;
@@ -126,24 +126,18 @@
       vx *= friction;
       vy *= friction;
 
-      // 2. 「端（引っかかった側）」を軸にした回転トルク計算
+      // 2. 接地端軸の回転トルク計算
       const speed = Math.hypot(vx, vy);
       if (speed > 0.05) {
-        // 棒のベクトル (cos, sin)
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-
-        // 棒の向きと移動方向の外積から、左右どちらの端が接地・固定されるかを判定
         const cross = cos * vy - sin * vx;
-
-        // 接地している端を軸に、傾きと移動の抵抗（摩擦トルク）を発生させる
         angularVel += cross * 0.002;
       }
 
-      angularVel *= 0.70; // 回転減衰
+      angularVel *= 0.72;
       angle += angularVel;
 
-      // 支点（ピボット）がずれることによる位置補正
       posX += vx;
       posY += vy;
 
@@ -159,7 +153,7 @@
       if (posY < minY) { posY = minY; vy = 0; }
       if (posY > maxY) { posY = maxY; vy = 0; }
 
-      // 4. ピクセル・角度のクランプ描画（チラつき防止）
+      // 4. ピクセル描画の四捨五入（チラつき防止）
       const drawX = Math.round(posX - lineLength / 2);
       const drawY = Math.round(posY);
       const drawAngle = Math.round(angle * 100) / 100;
