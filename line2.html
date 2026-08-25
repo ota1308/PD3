@@ -6,12 +6,14 @@
   <title>リアルに転がるシャー芯</title>
   <style>
     :root {
-      --bg-color: #f4f5f7;
-      --card-bg: #ffffff;
-      --text-primary: #333333;
-      --text-secondary: #666666;
-      --line-color: #111111;
-      --shadow-color: rgba(0, 0, 0, 0.4);
+      /* 白黒を避けたニュアンスカラー配色 */
+      --bg-color: #e8edf2;        /* 落ち着いたスモーキーブルー */
+      --card-bg: #f7f5f0;        /* 優しいライトベージュ */
+      --text-primary: #2d3748;   /* 濃いネイビーグレー（黒ではない） */
+      --text-secondary: #5a6a80; /* ブルー系グレー */
+      --accent-color: #4a7c59;   /* くすみグリーン（アクセント） */
+      --line-color: #111111;     /* シャー芯（完全な黒でくっきり見せる） */
+      --shadow-color: rgba(0, 0, 0, 0.35);
     }
 
     * {
@@ -30,7 +32,7 @@
       touch-action: none;
     }
 
-    /* 背景：Webサイト記事風のコンテンツ */
+    /* 背景：Webサイト風レイアウト */
     .site-background {
       width: 100%;
       max-width: 600px;
@@ -40,12 +42,12 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
-      opacity: 0.85;
+      opacity: 0.9;
       pointer-events: none;
     }
 
     .site-header {
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid #cbd5e1;
       padding-bottom: 12px;
       margin-top: 50px;
     }
@@ -58,23 +60,24 @@
 
     .site-subtitle {
       font-size: 12px;
-      color: var(--text-secondary);
+      color: var(--accent-color);
+      font-weight: bold;
       margin-top: 4px;
     }
 
     .article-card {
       background: var(--card-bg);
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #dbe2ea;
     }
 
     .article-title {
       font-size: 14px;
       font-weight: bold;
       margin-bottom: 8px;
-      color: #222222;
+      color: var(--text-primary);
     }
 
     .article-text {
@@ -112,7 +115,7 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px;
-      background: #007aff;
+      background: #3b82f6;
       color: #fff;
       border: none;
       border-radius: 20px;
@@ -129,7 +132,7 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 16px;
-      background: rgba(255, 59, 48, 0.9);
+      background: rgba(239, 68, 68, 0.9);
       color: #fff;
       border-radius: 8px;
       font-size: 12px;
@@ -142,25 +145,25 @@
 </head>
 <body>
 
-  <!-- 背景要素 -->
+  <!-- 背景要素（カラー版） -->
   <div class="site-background">
     <header class="site-header">
-      <div class="site-title">Sample Web Magazine</div>
-      <div class="site-subtitle">デザインとテクノロジーに関するニュース</div>
+      <div class="site-title">Creative Web Notes</div>
+      <div class="site-subtitle">● DESIGN & PHYSICS SIMULATION</div>
     </header>
 
     <main style="display: flex; flex-direction: column; gap: 12px;">
       <article class="article-card">
-        <h2 class="article-title">モバイル端末における物理シミュレーション</h2>
+        <h2 class="article-title">カラーパレットと視認性のバランス</h2>
         <p class="article-text">
-          ジャイロセンサーを活用した表現は、ユーザーの直感的な操作感を高める効果があります。画面の傾きに正確に反応するオブジェクトは、心地よいインタラクションを生み出します。
+          背景色にくすみカラーを採用することで、洗練されたデザインを保ちつつ、微細なグラフィックオブジェクトの動きを際立たせることができます。
         </p>
       </article>
 
       <article class="article-card">
-        <h2 class="article-title">シンプルデザインと視認性の両立</h2>
+        <h2 class="article-title">ジャイロセンサーの加速度カーブ</h2>
         <p class="article-text">
-          文字情報とグラフィック要素のコントラストを正しく設計することで、コンテンツの読みやすさを損なわずにインタラクティブな要素を配置することが可能になります。
+          傾き角度に対して指数関数的な加速度を設定することで、直感的で心地よい物理的な手応えをユーザーに提供することが可能です。
         </p>
       </article>
     </main>
