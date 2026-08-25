@@ -6,14 +6,14 @@
   <title>リアルに転がるシャー芯</title>
   <style>
     :root {
-      /* 白黒を避けたニュアンスカラー配色 */
-      --bg-color: #e8edf2;        /* 落ち着いたスモーキーブルー */
-      --card-bg: #f7f5f0;        /* 優しいライトベージュ */
-      --text-primary: #2d3748;   /* 濃いネイビーグレー（黒ではない） */
-      --text-secondary: #5a6a80; /* ブルー系グレー */
-      --accent-color: #4a7c59;   /* くすみグリーン（アクセント） */
+      /* 黄土色（オーカー）ベースのアースカラー配色 */
+      --bg-color: #d4a359;        /* 温かみのある黄土色 */
+      --card-bg: #f7f3e8;        /* 生成り色のサンドベージュ */
+      --text-primary: #3d2e1e;   /* 深みのあるダークブラウン */
+      --text-secondary: #7a6248; /* やわらかいブラウン */
+      --accent-color: #a65d37;   /* テラコッタ・レンガ色（アクセント） */
       --line-color: #111111;     /* シャー芯（完全な黒でくっきり見せる） */
-      --shadow-color: rgba(0, 0, 0, 0.35);
+      --shadow-color: rgba(0, 0, 0, 0.4);
     }
 
     * {
@@ -42,12 +42,12 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
-      opacity: 0.9;
+      opacity: 0.95;
       pointer-events: none;
     }
 
     .site-header {
-      border-bottom: 2px solid #cbd5e1;
+      border-bottom: 2px solid #b88a44;
       padding-bottom: 12px;
       margin-top: 50px;
     }
@@ -69,8 +69,8 @@
       background: var(--card-bg);
       border-radius: 12px;
       padding: 18px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      border: 1px solid #dbe2ea;
+      box-shadow: 0 4px 12px rgba(61, 46, 30, 0.15);
+      border: 1px solid #e2d5c3;
     }
 
     .article-title {
@@ -115,15 +115,15 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px;
-      background: #3b82f6;
-      color: #fff;
+      background: #3d2e1e;
+      color: #f7f3e8;
       border: none;
       border-radius: 20px;
       font-size: 13px;
       font-weight: bold;
       z-index: 100;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
 
     .error-msg {
@@ -132,7 +132,7 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 16px;
-      background: rgba(239, 68, 68, 0.9);
+      background: rgba(166, 93, 55, 0.95);
       color: #fff;
       border-radius: 8px;
       font-size: 12px;
@@ -145,7 +145,7 @@
 </head>
 <body>
 
-  <!-- 背景要素（カラー版） -->
+  <!-- 背景要素（黄土色カラー版） -->
   <div class="site-background">
     <header class="site-header">
       <div class="site-title">Creative Web Notes</div>
