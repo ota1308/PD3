@@ -7,8 +7,8 @@
   <style>
     :root {
       --bg-color: #f5f5f7;
-      --line-color: #000000;
-      --shadow-color: rgba(0, 0, 0, 0.35);
+      --line-color: #111111;
+      --shadow-color: rgba(0, 0, 0, 0.4);
     }
 
     * {
@@ -35,9 +35,9 @@
       overflow: hidden;
     }
 
-    /* 1px太さ・1px影の棒 */
+    /* 1px幅・1px影の長い棒（シャー芯） */
     .target-line {
-      width: 120px;
+      width: 220px; /* 伸ばした長さ */
       height: 1px;
       background-color: var(--line-color);
       box-shadow: 0px 1px 0px var(--shadow-color);
@@ -97,70 +97,74 @@
     const errorMsg = document.getElementById('error-msg');
 
     // 物理パラメータ
-    let posX = viewport.clientWidth / 2 - 60;
+    const lineLength = 220; // 棒の長さ
+    let posX = viewport.clientWidth / 2 - (lineLength / 2);
     let posY = viewport.clientHeight / 2;
     let vx = 0;
     let vy = 0;
     let angle = 0;        // 棒自体の向き(ラジアン)
     let angularVel = 0; // 向きの回転速度
-    let rollAngle = 0;  // 軸周りのコロコロ回転(度)
+    let rollAngle = 0;  // 軸周りの回転(度)
 
     let tiltX = 0; // 左右の加速度
     let tiltY = 0; // 前後の加速度
 
-    const friction = 0.97;      // 空気・転がり抵抗
-    const bounce = -0.4;        // 壁との反発係数
-    const gravityScale = 0.15;  // 傾き感度
+    // 摩擦・物理定数
+    const staticFriction = 0.8;  // 静止摩擦（小さすぎる傾きでは動き出さない閾値）
+    const kineticFriction = 0.96; // 動摩擦抵抗（転がりやすさ）
+    const bounce = -0.35;        // 壁との反発係数
+    const gravityScale = 0.18;  // 重力・感度
 
-    // リアルな物理シミュレーション描画ループ
+    // 物理シミュレーション描画ループ
     function animate() {
-      const lineLength = 120;
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      // 1. 傾きから加速度を加算 (X軸・Y軸)
-      vx += tiltX * gravityScale;
-      vy += tiltY * gravityScale;
+      // 静止摩擦の判定（傾きが一定値以下の場合は力を加えない）
+      const forceX = Math.abs(tiltX) > staticFriction ? tiltX * gravityScale : 0;
+      const forceY = Math.abs(tiltY) > staticFriction ? tiltY * gravityScale : 0;
 
-      // 2. 摩擦・抵抗の適用
-      vx *= friction;
-      vy *= friction;
+      // 1. 加速度の適用
+      vx += forceX;
+      vy += forceY;
+
+      // 2. 動摩擦・抵抗の適用
+      vx *= kineticFriction;
+      vy *= kineticFriction;
+
+      // 微小な速度の停止処理（ピタッと止まるリアル感）
+      if (Math.abs(vx) < 0.01) vx = 0;
+      if (Math.abs(vy) < 0.01) vy = 0;
 
       // 3. 位置の更新
       posX += vx;
       posY += vy;
 
-      // 4. 移動速度に応じたリアルな軸回転 (コロコロ感)
+      // 4. 移動速度に応じた回転（転がり感）
       const speed = Math.hypot(vx, vy);
-      rollAngle += speed * 3;
+      rollAngle += speed * 2.5;
 
-      // 棒が移動方向にじわっと向きを変えるトルク計算
+      // 転がり中の軸の回旋トルク
       if (speed > 0.1) {
         const moveAngle = Math.atan2(vy, vx);
         let angleDiff = moveAngle - angle;
-        // 角度の正規化 (-PI ~ PI)
         angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        angularVel += angleDiff * 0.02;
+        angularVel += angleDiff * 0.015;
       }
-      angularVel *= 0.85; // 回転減衰
+      angularVel *= 0.88;
       angle += angularVel;
 
-      // 5. 画面端（四方の壁）との衝突判定
-      const halfL = lineLength / 2;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
+      // 5. 画面外までの移動制限（画面枠より少し外側まで移動可能にする設定）
+      const margin = 80; // 外側にみ出るマージン(px)
+      const minX = -margin;
+      const maxX = screenW + margin - lineLength;
+      const minY = -margin;
+      const maxY = screenH + margin;
 
-      // 端点の計算
-      const x1 = posX - halfL * cos;
-      const y1 = posY - halfL * sin;
-      const x2 = posX + halfL * cos;
-      const y2 = posY + halfL * sin;
-
-      // 壁（左右上下）との反発補正
-      if (x1 < 0 || x2 < 0) { posX = Math.max(posX, halfL * Math.abs(cos)); vx *= bounce; }
-      if (x1 > screenW || x2 > screenW) { posX = Math.min(posX, screenW - halfL * Math.abs(cos)); vx *= bounce; }
-      if (y1 < 0 || y2 < 0) { posY = Math.max(posY, halfL * Math.abs(sin)); vy *= bounce; }
-      if (y1 > screenH || y2 > screenH) { posY = Math.min(posY, screenH - halfL * Math.abs(sin)); vy *= bounce; }
+      if (posX < minX) { posX = minX; vx *= bounce; }
+      if (posX > maxX) { posX = maxX; vx *= bounce; }
+      if (posY < minY) { posY = minY; vy *= bounce; }
+      if (posY > maxY) { posY = maxY; vy *= bounce; }
 
       // 6. トランスフォームの適用
       line.style.transform = `translate(${posX}px, ${posY}px) rotate(${angle}rad) rotateX(${rollAngle}deg)`;
@@ -168,13 +172,12 @@
       requestAnimationFrame(animate);
     }
 
-    // 傾きセンサーの検知 (X軸: gamma, Y軸: beta)
+    // 傾きセンサーの検知
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
         let g = event.gamma; // 左右 (-90 ~ 90)
         let b = event.beta;  // 前後 (-180 ~ 180)
 
-        // スマホの向き（画面回転）に応じた補正
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
         if (orientation === 90) {
           tiltX = -b;
@@ -187,13 +190,12 @@
           tiltY = b;
         }
 
-        // 急激な動きを抑えるクランプ処理
         tiltX = Math.max(-45, Math.min(45, tiltX));
         tiltY = Math.max(-45, Math.min(45, tiltY));
       }
     }
 
-    // センサーアクセス要求（iOS / Android対応）
+    // センサー起動処理
     function enableSensor() {
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
@@ -226,8 +228,6 @@
     }
 
     sensorBtn.addEventListener('click', enableSensor);
-
-    // アニメーションループ起動
     requestAnimationFrame(animate);
   </script>
 </body>
