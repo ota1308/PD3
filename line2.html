@@ -35,7 +35,7 @@
       overflow: hidden;
     }
 
-    /* シャー芯のスタイル (チラつきを防止するため2D表示を基本に維持) */
+    /* 1px・1px影のシャー芯 */
     .target-line {
       width: 220px;
       height: 1px;
@@ -45,7 +45,7 @@
       top: 0;
       left: 0;
       transform-origin: center center;
-      will-change: transform;
+      backface-visibility: hidden;
     }
 
     .sensor-btn {
@@ -97,28 +97,28 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // 物理パラメーター設定
+    // 物理パラメータ調整（速度抑制・回転抑制）
     const lineLength = 220;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
     let vy = 0;
-    let angle = 0;        // 棒の傾き（角度）
+    let angle = 0;        // 角度
     let angularVel = 0; // 回転速度
 
     let tiltX = 0;
     let tiltY = 0;
 
-    // より重みがあり遅いコロコロ感のための調整
-    const friction = 0.92;       // 強い空気抵抗・コロコロ抵抗（滑りを抑制）
-    const gravityScale = 0.05;   // 転がる速度を大幅に低下（重みを追加）
-    const staticThreshold = 1.2; // 静止摩擦（少し傾けないと転がり出さない）
+    // パラメータ：超低速＆回転制御
+    const friction = 0.90;       // 強い抵抗（滑り・転がりをすぐに減速）
+    const gravityScale = 0.02;   // 転がり速度をさらに低下（非常にゆったり動く）
+    const staticThreshold = 1.8; // 静止摩擦（小さく傾けた程度ではピタッと止まる）
 
     function animate() {
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      // 静止摩擦（小さな傾きは無視してピタッと止める）
+      // 静止摩擦（小さな傾きは無視）
       const forceX = Math.abs(tiltX) > staticThreshold ? tiltX * gravityScale : 0;
       const forceY = Math.abs(tiltY) > staticThreshold ? tiltY * gravityScale : 0;
 
@@ -126,7 +126,7 @@
       vx += forceX;
       vy += forceY;
 
-      // 2. 摩擦適用（滑らずにゆっくり転がる）
+      // 2. 強い摩擦適用（低速維持）
       vx *= friction;
       vy *= friction;
 
@@ -134,33 +134,36 @@
       posX += vx;
       posY += vy;
 
-      // 4. 移動方向に応じて棒自体がゆっくり首を振る回転（コロコロ転がり感）
+      // 4. 回転（首振り）を最小限に抑える処理
       const speed = Math.hypot(vx, vy);
-      if (speed > 0.05) {
-        // 移動方向に対して直角（転がる方向）に棒を向ける計算
+      if (speed > 0.1) {
         const moveAngle = Math.atan2(vy, vx) + Math.PI / 2;
         let angleDiff = moveAngle - angle;
         angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        angularVel += angleDiff * 0.03;
+        // 回転トルクの係数を 0.03 から 0.005 に大幅引き下げ（ほとんど回転しないように）
+        angularVel += angleDiff * 0.005;
       }
-      angularVel *= 0.82;
+      angularVel *= 0.75; // 回転減衰を強める
       angle += angularVel;
 
-      // 5. 四方すべての画面外（画面縁から大きく食い込む領域）の境界判定
-      const margin = 120; // 四方に120px分画面外へ出られるように設定
+      // 5. 四方すべての画面外（マージン120px）設定
+      const margin = 120;
       const minX = -margin;
       const maxX = screenW + margin;
       const minY = -margin;
       const maxY = screenH + margin;
 
-      if (posX < minX) { posX = minX; vx *= -0.2; }
-      if (posX > maxX) { posX = maxX; vx *= -0.2; }
-      if (posY < minY) { posY = minY; vy *= -0.2; }
-      if (posY > maxY) { posY = maxY; vy *= -0.2; }
+      if (posX < minX) { posX = minX; vx = 0; }
+      if (posX > maxX) { posX = maxX; vx = 0; }
+      if (posY < minY) { posY = minY; vy = 0; }
+      if (posY > maxY) { posY = maxY; vy = 0; }
 
-      // 6. 描画 (中心基準で位置と角度を設定しチラつきを完全に防止)
-      const drawX = posX - lineLength / 2;
-      line.style.transform = `translate(${drawX}px, ${posY}px) rotate(${angle}rad)`;
+      // 6. 描画位置の四捨五入（チラつき防止のピクセル補正）
+      const drawX = Math.round(posX - lineLength / 2);
+      const drawY = Math.round(posY);
+      const drawAngle = Math.round(angle * 100) / 100; // 角度の精度を四捨五入
+
+      line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
 
       requestAnimationFrame(animate);
     }
