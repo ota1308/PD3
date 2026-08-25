@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>転がるシャー芯</title>
+  <style>
+    :root {
+      --bg-color: #f5f5f7;
+      --line-color: #000000;
+      --shadow-color: rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+    }
+
+    .viewport {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    /* 1px幅・1px影の線 */
+    .target-line {
+      width: 40%;
+      height: 1px;
+      background-color: var(--line-color);
+      box-shadow: 0px 1px 0px var(--shadow-color);
+      position: absolute;
+      will-change: transform;
+    }
+
+    /* 許可ボタン / 警告メッセージ */
+    .sensor-btn {
+      position: absolute;
+      top: 20px;
+      padding: 12px 24px;
+      background: #007aff;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 100;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .error-msg {
+      position: absolute;
+      top: 20px;
+      padding: 10px 16px;
+      background: rgba(255, 59, 48, 0.9);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="viewport" id="viewport">
+    <div class="target-line" id="line"></div>
+  </div>
+
+  <script>
+    let posX = 0;
+    let velocity = 0;
+    let rotation = 0;
+    let tiltGamma = 0;
+
+    const friction = 0.95;   // 摩擦
+    const accelFactor = 0.25; // 感度
+
+    const line = document.getElementById('line');
+    const viewport = document.getElementById('viewport');
+    const sensorBtn = document.getElementById('sensor-btn');
+    const errorMsg = document.getElementById('error-msg');
+
+    // 物理演算＆アニメーション（物理計算のみで描画）
+    function animate() {
+      const maxDistance = (viewport.clientWidth - line.clientWidth) / 2;
+
+      // 傾き(tiltGamma)による加速
+      velocity += tiltGamma * accelFactor;
+      velocity *= friction;
+      posX += velocity;
+
+      // 転がり回転
+      rotation += velocity * 2;
+
+      // 壁での跳ね返り
+      if (posX > maxDistance) {
+        posX = maxDistance;
+        velocity *= -0.3;
+      } else if (posX < -maxDistance) {
+        posX = -maxDistance;
+        velocity *= -0.3;
+      }
+
+      line.style.transform = `translateX(${posX}px) rotate(${rotation}deg)`;
+      requestAnimationFrame(animate);
+    }
+
+    // 傾き検知処理
+    function handleOrientation(event) {
+      if (event.gamma !== null && event.gamma !== undefined) {
+        let g = event.gamma;
+
+        // 画面の向き（縦持ち・横持ち）に応じた補正
+        const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
+        if (orientation === 90) g = -event.beta;
+        else if (orientation === -90) g = event.beta;
+
+        // 傾き角度の制限 (-45度〜45度)
+        tiltGamma = Math.max(-45, Math.min(45, g));
+      }
+    }
+
+    // センサー有効化処理
+    function enableSensor() {
+      // セキュアコンテキスト(HTTPS)チェック
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showError('エラー: 傾きセンサーの起動には HTTPS 接続が必要です。');
+        return;
+      }
+
+      // iOS 13+ 向けパーミッション要求
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+              sensorBtn.style.display = 'none';
+            } else {
+              showError('センサーのアクセスが拒否されました。設定から許可してください。');
+            }
+          })
+          .catch(err => showError('センサーの起動に失敗しました。'));
+      } else if (window.DeviceOrientationEvent) {
+        // Android / 標準ブラウザ向け
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        sensorBtn.style.display = 'none';
+      } else {
+        showError('お使いの端末・ブラウザは傾きセンサーに対応していません。');
+      }
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      sensorBtn.style.display = 'none';
+    }
+
+    // イベント設定
+    sensorBtn.addEventListener('click', enableSensor);
+
+    // Android等で自動でセンサーが取れる場合はボタンを消してそのまま開始
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      // 一定時間後にセンサー値が入っていればボタンを隠す
+      setTimeout(() => {
+        if (tiltGamma !== 0) sensorBtn.style.display = 'none';
+      }, 500);
+    }
+
+    // アニメーションループ開始
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
