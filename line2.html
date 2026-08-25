@@ -107,18 +107,28 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // 中間のジャイロ感度に設定
-    const friction = 0.90;       // 空気・摩擦抵抗
-    const gravityScale = 0.04;  // 感度（前回の0.05と0.008の中間）
-    const staticThreshold = 1.8; // 静止摩擦閾値
+    const friction = 0.92;         // 摩擦抵抗
+    const baseSensitivity = 0.001; // 基本感度スケール
+    const exponent = 2.2;          // 傾きに応じた倍率指数（数値を上げるとより急激に加速）
+    const staticThreshold = 1.5;   // 静止摩擦閾値
+
+    // 傾き角度から倍数的な加速度を計算する関数
+    function calculateExponentialForce(tilt) {
+      const absTilt = Math.abs(tilt);
+      if (absTilt <= staticThreshold) return 0;
+
+      // 傾きの強さに応じて指数（2.2乗）関数的に数値を増加させる
+      const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
+      return Math.sign(tilt) * force;
+    }
 
     function animate() {
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      // 静止摩擦処理
-      const forceX = Math.abs(tiltX) > staticThreshold ? tiltX * gravityScale : 0;
-      const forceY = Math.abs(tiltY) > staticThreshold ? tiltY * gravityScale : 0;
+      // 倍数的な加速度の計算
+      const forceX = calculateExponentialForce(tiltX);
+      const forceY = calculateExponentialForce(tiltY);
 
       // 1. 加速度と移動
       vx += forceX;
