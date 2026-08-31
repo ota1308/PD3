@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>リアルに転がる髪の毛</title>
+  <title>リアルに滑り落ちる髪の毛</title>
   <style>
     * {
       box-sizing: border-box;
@@ -32,7 +32,7 @@
       z-index: 10;
     }
 
-    /* 髪の毛要素のコンテナ（長さを240pxに拡張） */
+    /* 髪の毛要素のコンテナ */
     .target-hair {
       width: 240px;
       height: 40px;
@@ -45,8 +45,8 @@
       
       /* 画面（ガラス面）に載っているリアルな二重影 */
       filter: 
-        drop-shadow(0.5px 1.2px 0.6px rgba(0, 0, 0, 0.2))
-        drop-shadow(0px 0.2px 0.3px rgba(0, 0, 0, 0.3));
+        drop-shadow(0.5px 1.2px 0.6px rgba(0, 0, 0, 0.18))
+        drop-shadow(0px 0.2px 0.3px rgba(0, 0, 0, 0.25));
     }
 
     .target-hair svg {
@@ -99,10 +99,9 @@
 
   <div class="viewport" id="viewport">
     <div class="target-hair" id="line">
-      <!-- 大きく1つだけカーブする長い髪の毛 -->
+      <!-- 大きく1つカーブする長い髪の毛 -->
       <svg viewBox="0 0 240 40">
         <defs>
-          <!-- 毛先に向かって透けるグラデーション -->
           <linearGradient id="long-hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#111111" stop-opacity="0.15"/>
             <stop offset="10%" stop-color="#1a1817" stop-opacity="0.95"/>
@@ -111,7 +110,6 @@
             <stop offset="100%" stop-color="#111111" stop-opacity="0.15"/>
           </linearGradient>
 
-          <!-- ハイライト -->
           <linearGradient id="long-hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
             <stop offset="40%" stop-color="#ffffff" stop-opacity="0.22"/>
@@ -120,14 +118,12 @@
           </linearGradient>
         </defs>
 
-        <!-- 1. 大きくひとつのアーチを描く線（Q 120,38 で中央を下に向かって滑らかにしならせる） -->
         <path d="M 5,8 Q 120,38 235,10" 
               fill="none" 
               stroke="url(#long-hair-taper)" 
               stroke-width="0.85" 
               stroke-linecap="round"/>
 
-        <!-- 2. 光沢ライン -->
         <path d="M 5,8 Q 120,38 235,10" 
               fill="none" 
               stroke="url(#long-hair-highlight)" 
@@ -154,10 +150,11 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    const friction = 0.92;
-    const baseSensitivity = 0.001;
-    const exponent = 2.2;
-    const staticThreshold = 1.5;
+    /* 「ふわっと滑る」ための物理パラメータ調整 */
+    const friction = 0.86;          /* 空気抵抗・摩擦を高めて減速をなめらかに (0.92 → 0.86) */
+    const baseSensitivity = 0.0006; /* 加速度を小さくし、ゆるやかに滑り出す設定に */
+    const exponent = 1.8;           /* 傾きに対する反応をなだらかにし、唐突な動きを抑える */
+    const staticThreshold = 1.0;    /* 動き出しの閾値を下げて微細な傾きにじわっと反応 */
 
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
@@ -179,14 +176,18 @@
       vy *= friction;
 
       const speed = Math.hypot(vx, vy);
+
+      /* 髪の毛特有の「滑り」を再現：くるくる回らず、移動方向に沿うようなゆるい回転 */
       if (speed > 0.05) {
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const cross = cos * vy - sin * vx;
-        angularVel += cross * 0.002;
+        /* 回転トルクを弱めて、クルクル回るのではなく自然にしなって向きが変わる挙動に */
+        angularVel += cross * 0.0004; 
       }
 
-      angularVel *= 0.72;
+      /* 強い回転減衰（くるくる回転するのを素早く抑える） */
+      angularVel *= 0.60;
       angle += angularVel;
 
       posX += vx;
