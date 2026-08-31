@@ -34,22 +34,26 @@
 
     /* 髪の毛要素のコンテナ */
     .target-hair {
-      width: 160px;
-      height: 12px;
+      width: 180px;
+      height: 40px;
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
       pointer-events: none;
-      /* 非常に薄い影で紙の上に載っているリアル感を表現 */
-      filter: drop-shadow(0px 0.8px 0.8px rgba(0, 0, 0, 0.18));
+      
+      /* 画面（ガラス面）からわずかに浮いているリアルな二重影 */
+      filter: 
+        drop-shadow(0.5px 1.5px 0.8px rgba(0, 0, 0, 0.22))
+        drop-shadow(0px 0.2px 0.3px rgba(0, 0, 0, 0.35));
     }
 
     .target-hair svg {
       width: 100%;
       height: 100%;
       display: block;
+      overflow: visible;
     }
 
     /* センサー開始ボタン */
@@ -95,9 +99,40 @@
 
   <div class="viewport" id="viewport">
     <div class="target-hair" id="line">
-      <!-- 実寸に近いリアルな髪の毛の太さと絶妙なカーブを再現したSVG -->
-      <svg viewBox="0 0 160 12" preserveAspectRatio="none">
-        <path d="M 2,6 C 45,1 115,11 158,6 C 158.8,6 158.8,6.3 158,6.3 C 115,11.3 45,1.3 2,6 Z" fill="#222222" />
+      <!-- 超リアルな一本の抜け毛を描画するSVG -->
+      <svg viewBox="0 0 180 40">
+        <defs>
+          <!-- 毛先に向かって透ける質感グラデーション -->
+          <linearGradient id="hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#111111" stop-opacity="0.3"/>
+            <stop offset="15%" stop-color="#1a1817" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#2a2523" stop-opacity="1"/>
+            <stop offset="85%" stop-color="#1a1817" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#111111" stop-opacity="0.2"/>
+          </linearGradient>
+
+          <!-- 光が当たった時のごく微細なハイライト（立体感） -->
+          <linearGradient id="hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+            <stop offset="45%" stop-color="#ffffff" stop-opacity="0.25"/>
+            <stop offset="55%" stop-color="#ffffff" stop-opacity="0.05"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+
+        <!-- 1. 毛本体（実物のランダムな曲がり・うねり） -->
+        <path d="M 5,28 C 30,38 55,5 90,20 C 120,32 145,8 175,18" 
+              fill="none" 
+              stroke="url(#hair-taper)" 
+              stroke-width="0.85" 
+              stroke-linecap="round"/>
+
+        <!-- 2. 光沢ライン（画面ガラス越しに載っているような質感） -->
+        <path d="M 5,28 C 30,38 55,5 90,20 C 120,32 145,8 175,18" 
+              fill="none" 
+              stroke="url(#hair-highlight)" 
+              stroke-width="0.3" 
+              stroke-linecap="round"/>
       </svg>
     </div>
   </div>
@@ -108,7 +143,7 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    const hairWidth = 160;
+    const hairWidth = 180;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
@@ -169,7 +204,7 @@
       if (posY > maxY) { posY = maxY; vy = 0; }
 
       const drawX = Math.round(posX - hairWidth / 2);
-      const drawY = Math.round(posY - 6);
+      const drawY = Math.round(posY - 20);
       const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
