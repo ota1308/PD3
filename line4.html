@@ -32,10 +32,10 @@
       z-index: 10;
     }
 
-    /* 髪の毛要素のコンテナ */
+    /* 髪の毛要素のコンテナ（長さを240pxに拡張） */
     .target-hair {
-      width: 180px;
-      height: 20px;
+      width: 240px;
+      height: 40px;
       position: absolute;
       top: 0;
       left: 0;
@@ -99,38 +99,38 @@
 
   <div class="viewport" id="viewport">
     <div class="target-hair" id="line">
-      <!-- ストレートな髪の毛の描写 -->
-      <svg viewBox="0 0 180 20">
+      <!-- 大きく1つだけカーブする長い髪の毛 -->
+      <svg viewBox="0 0 240 40">
         <defs>
           <!-- 毛先に向かって透けるグラデーション -->
-          <linearGradient id="straight-hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#111111" stop-opacity="0.2"/>
-            <stop offset="12%" stop-color="#1a1817" stop-opacity="0.95"/>
+          <linearGradient id="long-hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#111111" stop-opacity="0.15"/>
+            <stop offset="10%" stop-color="#1a1817" stop-opacity="0.95"/>
             <stop offset="50%" stop-color="#222222" stop-opacity="1"/>
-            <stop offset="88%" stop-color="#1a1817" stop-opacity="0.95"/>
-            <stop offset="100%" stop-color="#111111" stop-opacity="0.2"/>
+            <stop offset="90%" stop-color="#1a1817" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#111111" stop-opacity="0.15"/>
           </linearGradient>
 
-          <!-- 天井の光を反射する微細なハイライト -->
-          <linearGradient id="straight-hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
+          <!-- ハイライト -->
+          <linearGradient id="long-hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-            <stop offset="40%" stop-color="#ffffff" stop-opacity="0.25"/>
+            <stop offset="40%" stop-color="#ffffff" stop-opacity="0.22"/>
             <stop offset="60%" stop-color="#ffffff" stop-opacity="0.05"/>
             <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
           </linearGradient>
         </defs>
 
-        <!-- 1. ストレート（ごく僅かなしなり）な髪の毛本体 -->
-        <path d="M 5,10 C 60,7 120,13 175,10" 
+        <!-- 1. 大きくひとつのアーチを描く線（Q 120,38 で中央を下に向かって滑らかにしならせる） -->
+        <path d="M 5,8 Q 120,38 235,10" 
               fill="none" 
-              stroke="url(#straight-hair-taper)" 
-              stroke-width="0.8" 
+              stroke="url(#long-hair-taper)" 
+              stroke-width="0.85" 
               stroke-linecap="round"/>
 
-        <!-- 2. キューティクルの反射線 -->
-        <path d="M 5,10 C 60,7 120,13 175,10" 
+        <!-- 2. 光沢ライン -->
+        <path d="M 5,8 Q 120,38 235,10" 
               fill="none" 
-              stroke="url(#straight-hair-highlight)" 
+              stroke="url(#long-hair-highlight)" 
               stroke-width="0.25" 
               stroke-linecap="round"/>
       </svg>
@@ -143,7 +143,7 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    const hairWidth = 180;
+    const hairWidth = 240;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
@@ -204,7 +204,7 @@
       if (posY > maxY) { posY = maxY; vy = 0; }
 
       const drawX = Math.round(posX - hairWidth / 2);
-      const drawY = Math.round(posY - 10);
+      const drawY = Math.round(posY - 20);
       const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
