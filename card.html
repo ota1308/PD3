@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>セルオートマトン的透過（確実動作版）</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #111;
+      font-family: monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* ステージ */
+    .stage {
+      position: relative;
+      width: 340px;
+      height: 480px;
+      border: 2px solid #333;
+    }
+
+    /* 下層レイヤー（グラフィック層） */
+    .layer-bottom {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #ff0055, #7a00ff, #00e5ff);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      padding: 20px;
+      z-index: 1;
+    }
+
+    .layer-bottom h2 {
+      font-size: 28px;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    .layer-bottom p {
+      font-size: 11px;
+      opacity: 0.9;
+      text-align: center;
+      letter-spacing: 1px;
+    }
+
+    /* 上層レイヤー（インタラクティブ層） */
+    .layer-top-container {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    /* テキストなどのUIをSVGの上に重ねて表示 */
+    .card-ui {
+      position: absolute;
+      inset: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none; /* 下のSVGに操作を透過 */
+      color: #111;
+    }
+
+    .card-header {
+      border-bottom: 2px solid #111;
+      padding-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .card-body {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .card-footer {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background: #111;
+      color: #fff;
+      padding: 6px 10px;
+      display: inline-block;
+      width: fit-content;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="stage">
+    <!-- 下層：露出するコンテンツ -->
+    <div class="layer-bottom">
+      <h2>LAYER_01</h2>
+      <p>GRID-BASED DITHERING TRANSPARENCY</p>
+    </div>
+
+    <!-- 上層：マスク操作層 -->
+    <div class="layer-top-container" id="topContainer">
+      <!-- 直接SVG描画とマスク処理を実施 -->
+      <svg width="100%" height="100%" style="display: block;">
+        <defs>
+          <mask id="ditherMask">
+            <!-- ベースは全開（白） -->
+            <rect width="100%" height="100%" fill="white" />
+            <!-- グリッド状に黒い穴を開けるパターン -->
+            <pattern id="gridPattern" width="8" height="8" patternUnits="userSpaceOnUse">
+              <rect id="dot1" x="0" y="0" width="0" height="0" fill="black" />
+              <rect id="dot2" x="4" y="4" width="0" height="0" fill="black" />
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#gridPattern)" />
+          </mask>
+        </defs>
+
+        <!-- マスクが適用される上層カードの本体（白枠） -->
+        <rect width="100%" height="100%" fill="#f4f4f0" mask="url(#ditherMask)" />
+      </svg>
+
+      <!-- UI（テキスト等） -->
+      <div class="card-ui">
+        <div class="card-header">
+          <div class="card-title">PRESS & HOLD</div>
+        </div>
+        <div class="card-body">
+          ここを押したまま（またはタップしたまま）にすると、この面がグリッドピクセル状に穴あき透過され、下の層が露出します。
+        </div>
+        <div class="card-footer" id="statusText">STATUS: SOLID</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('topContainer');
+    const dot1 = document.getElementById('dot1');
+    const dot2 = document.getElementById('dot2');
+    const statusText = document.getElementById('statusText');
+
+    let isPressing = false;
+    let progress = 0;
+    let animFrame = null;
+
+    // パターンの穴のサイズを更新 (0px 〜 4px)
+    function updateMask(val) {
+      const holeSize = val * 4.1; // 4.1pxで隣とくっついて最大透過率になる
+      dot1.setAttribute('width', holeSize);
+      dot1.setAttribute('height', holeSize);
+      dot2.setAttribute('width', holeSize);
+      dot2.setAttribute('height', holeSize);
+
+      if (val > 0.05) {
+        statusText.textContent = `DITHER: ${Math.round(val * 100)}%`;
+      } else {
+        statusText.textContent = `STATUS: SOLID`;
+      }
+    }
+
+    // なめらかな推移ループ
+    function loop() {
+      const target = isPressing ? 1 : 0;
+      progress += (target - progress) * 0.12; // イージング速度
+
+      updateMask(progress);
+
+      if (Math.abs(target - progress) > 0.001) {
+        animFrame = requestAnimationFrame(loop);
+      } else {
+        progress = target;
+        updateMask(progress);
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+      }
+    }
+
+    function startPress(e) {
+      if (e.type === 'touchstart') e.preventDefault(); // マウスとの二重発火を防止
+      isPressing = true;
+      if (!animFrame) animFrame = requestAnimationFrame(loop);
+    }
+
+    function endPress() {
+      isPressing = false;
+      if (!animFrame) animFrame = requestAnimationFrame(loop);
+    }
+
+    // パソコン（マウス操作）
+    container.addEventListener('mousedown', startPress);
+    window.addEventListener('mouseup', endPress);
+
+    // スマホ（タッチ操作）
+    container.addEventListener('touchstart', startPress, { passive: false });
+    window.addEventListener('touchend', endPress);
+    window.addEventListener('touchcancel', endPress);
+  </script>
+</body>
+</html>
