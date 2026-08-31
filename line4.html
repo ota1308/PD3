@@ -35,7 +35,7 @@
     /* 髪の毛要素のコンテナ */
     .target-hair {
       width: 180px;
-      height: 40px;
+      height: 20px;
       position: absolute;
       top: 0;
       left: 0;
@@ -43,10 +43,10 @@
       backface-visibility: hidden;
       pointer-events: none;
       
-      /* 画面（ガラス面）からわずかに浮いているリアルな二重影 */
+      /* 画面（ガラス面）に載っているリアルな二重影 */
       filter: 
-        drop-shadow(0.5px 1.5px 0.8px rgba(0, 0, 0, 0.22))
-        drop-shadow(0px 0.2px 0.3px rgba(0, 0, 0, 0.35));
+        drop-shadow(0.5px 1.2px 0.6px rgba(0, 0, 0, 0.2))
+        drop-shadow(0px 0.2px 0.3px rgba(0, 0, 0, 0.3));
     }
 
     .target-hair svg {
@@ -99,39 +99,39 @@
 
   <div class="viewport" id="viewport">
     <div class="target-hair" id="line">
-      <!-- 超リアルな一本の抜け毛を描画するSVG -->
-      <svg viewBox="0 0 180 40">
+      <!-- ストレートな髪の毛の描写 -->
+      <svg viewBox="0 0 180 20">
         <defs>
-          <!-- 毛先に向かって透ける質感グラデーション -->
-          <linearGradient id="hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#111111" stop-opacity="0.3"/>
-            <stop offset="15%" stop-color="#1a1817" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="#2a2523" stop-opacity="1"/>
-            <stop offset="85%" stop-color="#1a1817" stop-opacity="0.95"/>
+          <!-- 毛先に向かって透けるグラデーション -->
+          <linearGradient id="straight-hair-taper" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#111111" stop-opacity="0.2"/>
+            <stop offset="12%" stop-color="#1a1817" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#222222" stop-opacity="1"/>
+            <stop offset="88%" stop-color="#1a1817" stop-opacity="0.95"/>
             <stop offset="100%" stop-color="#111111" stop-opacity="0.2"/>
           </linearGradient>
 
-          <!-- 光が当たった時のごく微細なハイライト（立体感） -->
-          <linearGradient id="hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
+          <!-- 天井の光を反射する微細なハイライト -->
+          <linearGradient id="straight-hair-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-            <stop offset="45%" stop-color="#ffffff" stop-opacity="0.25"/>
-            <stop offset="55%" stop-color="#ffffff" stop-opacity="0.05"/>
+            <stop offset="40%" stop-color="#ffffff" stop-opacity="0.25"/>
+            <stop offset="60%" stop-color="#ffffff" stop-opacity="0.05"/>
             <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
           </linearGradient>
         </defs>
 
-        <!-- 1. 毛本体（実物のランダムな曲がり・うねり） -->
-        <path d="M 5,28 C 30,38 55,5 90,20 C 120,32 145,8 175,18" 
+        <!-- 1. ストレート（ごく僅かなしなり）な髪の毛本体 -->
+        <path d="M 5,10 C 60,7 120,13 175,10" 
               fill="none" 
-              stroke="url(#hair-taper)" 
-              stroke-width="0.85" 
+              stroke="url(#straight-hair-taper)" 
+              stroke-width="0.8" 
               stroke-linecap="round"/>
 
-        <!-- 2. 光沢ライン（画面ガラス越しに載っているような質感） -->
-        <path d="M 5,28 C 30,38 55,5 90,20 C 120,32 145,8 175,18" 
+        <!-- 2. キューティクルの反射線 -->
+        <path d="M 5,10 C 60,7 120,13 175,10" 
               fill="none" 
-              stroke="url(#hair-highlight)" 
-              stroke-width="0.3" 
+              stroke="url(#straight-hair-highlight)" 
+              stroke-width="0.25" 
               stroke-linecap="round"/>
       </svg>
     </div>
@@ -204,7 +204,7 @@
       if (posY > maxY) { posY = maxY; vy = 0; }
 
       const drawX = Math.round(posX - hairWidth / 2);
-      const drawY = Math.round(posY - 20);
+      const drawY = Math.round(posY - 10);
       const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
