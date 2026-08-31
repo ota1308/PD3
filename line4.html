@@ -18,7 +18,7 @@
       overflow: hidden;
       user-select: none;
       touch-action: none;
-      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     /* 物理描画層 */
@@ -34,32 +34,70 @@
 
     /* 髪の毛要素のコンテナ */
     .target-hair {
-      width: 180px;
-      height: 30px;
+      width: 160px;
+      height: 12px;
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
       pointer-events: none;
-      filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.15));
+      /* 非常に薄い影で紙の上に載っているリアル感を表現 */
+      filter: drop-shadow(0px 0.8px 0.8px rgba(0, 0, 0, 0.18));
     }
 
-    /* 髪の毛を描くSVG */
     .target-hair svg {
       width: 100%;
       height: 100%;
       display: block;
     }
+
+    /* センサー開始ボタン */
+    .sensor-btn {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: #111111;
+      color: #ffffff;
+      border: none;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      z-index: 100;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* エラーメッセージ */
+    .error-msg {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      background: rgba(220, 38, 38, 0.9);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      display: none;
+      text-align: center;
+      width: 80%;
+    }
   </style>
 </head>
 <body>
 
+  <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
+  <div class="error-msg" id="error-msg"></div>
+
   <div class="viewport" id="viewport">
     <div class="target-hair" id="line">
-      <!-- 自然なうねりと先細りを持つ髪の毛のSVGパス -->
-      <svg viewBox="0 0 180 30" preserveAspectRatio="none">
-        <path d="M 5,20 Q 40,5 90,15 T 175,10 C 177,10.2 177,10.8 175,11 Q 130,22 90,17 T 5,21 Z" fill="#1a1a1a" />
+      <!-- 実寸に近いリアルな髪の毛の太さと絶妙なカーブを再現したSVG -->
+      <svg viewBox="0 0 160 12" preserveAspectRatio="none">
+        <path d="M 2,6 C 45,1 115,11 158,6 C 158.8,6 158.8,6.3 158,6.3 C 115,11.3 45,1.3 2,6 Z" fill="#222222" />
       </svg>
     </div>
   </div>
@@ -67,8 +105,10 @@
   <script>
     const line = document.getElementById('line');
     const viewport = document.getElementById('viewport');
+    const sensorBtn = document.getElementById('sensor-btn');
+    const errorMsg = document.getElementById('error-msg');
 
-    const hairWidth = 180;
+    const hairWidth = 160;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
@@ -129,7 +169,7 @@
       if (posY > maxY) { posY = maxY; vy = 0; }
 
       const drawX = Math.round(posX - hairWidth / 2);
-      const drawY = Math.round(posY - 15);
+      const drawY = Math.round(posY - 6);
       const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
@@ -160,21 +200,37 @@
     }
 
     function enableSensor() {
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
+        return;
+      }
+
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(permissionState => {
             if (permissionState === 'granted') {
               window.addEventListener('deviceorientation', handleOrientation, true);
+              sensorBtn.style.display = 'none';
+            } else {
+              showError('センサーへのアクセスが拒否されました。');
             }
           })
-          .catch(() => {});
+          .catch(() => showError('センサー起動エラーが発生しました。'));
       } else if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', handleOrientation, true);
+        sensorBtn.style.display = 'none';
+      } else {
+        showError('お使いの端末は傾きセンサーに対応していません。');
       }
     }
 
-    window.addEventListener('click', enableSensor, { once: true });
-    window.addEventListener('touchstart', enableSensor, { once: true });
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      sensorBtn.style.display = 'none';
+    }
+
+    sensorBtn.addEventListener('click', enableSensor);
     requestAnimationFrame(animate);
   </script>
 </body>
