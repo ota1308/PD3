@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>リアルに転がるシャー芯</title>
+  <style>
+    :root {
+      /* 白背景ベースの配色 */
+      --bg-color: #ffffff;        /* 背景：真っ白 */
+      --card-bg: #f8f9fa;        /* 明るいグレーのカード */
+      --text-primary: #1a1a1a;   /* 濃いグレー（テキスト） */
+      --text-secondary: #555555; /* セカンダリテキスト */
+      --accent-color: #333333;   /* アクセントカラー */
+      --line-color: #111111;     /* シャー芯（くっきり見せる黒） */
+      --shadow-color: rgba(0, 0, 0, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-primary);
+      user-select: none;
+      touch-action: none;
+    }
+
+    /* 背景：Webサイト風レイアウト */
+    .site-background {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px 20px 60px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      opacity: 0.95;
+      pointer-events: none;
+    }
+
+    .site-header {
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 12px;
+      margin-top: 50px;
+    }
+
+    .site-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--text-primary);
+    }
+
+    .site-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: bold;
+      margin-top: 4px;
+    }
+
+    .article-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e5e7eb;
+    }
+
+    .article-title {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .article-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    /* 物理描画層 */
+    .viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .target-line {
+      width: 220px;
+      height: 1px;
+      background-color: var(--line-color);
+      box-shadow: 0px 1px 2px var(--shadow-color);
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: center center;
+      backface-visibility: hidden;
+    }
+
+    .sensor-btn {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: #1a1a1a;
+      color: #ffffff;
+      border: none;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      z-index: 100;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .error-msg {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      background: rgba(220, 38, 38, 0.9);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      display: none;
+      text-align: center;
+      width: 80%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 背景要素（白ベース版） -->
+  <div class="site-background">
+    <header class="site-header">
+      <div class="site-title">Creative Web Notes</div>
+      <div class="site-subtitle">● DESIGN & PHYSICS SIMULATION</div>
+    </header>
+
+    <main style="display: flex; flex-direction: column; gap: 12px;">
+      <article class="article-card">
+        <h2 class="article-title">カラーパレットと視認性のバランス</h2>
+        <p class="article-text">
+          背景色にくすみカラーを採用することで、洗練されたデザインを保ちつつ、微細なグラフィックオブジェクトの動きを際立たせることができます。
+        </p>
+      </article>
+
+      <article class="article-card">
+        <h2 class="article-title">ジャイロセンサーの加速度カーブ</h2>
+        <p class="article-text">
+          傾き角度に対して指数関数的な加速度を設定することで、直感的で心地よい物理的な手応えをユーザーに提供することが可能です。
+        </p>
+      </article>
+    </main>
+  </div>
+
+  <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="viewport" id="viewport">
+    <div class="target-line" id="line"></div>
+  </div>
+
+  <script>
+    const line = document.getElementById('line');
+    const viewport = document.getElementById('viewport');
+    const sensorBtn = document.getElementById('sensor-btn');
+    const errorMsg = document.getElementById('error-msg');
+
+    const lineLength = 220;
+    let posX = viewport.clientWidth / 2;
+    let posY = viewport.clientHeight / 2;
+    let vx = 0;
+    let vy = 0;
+    let angle = 0;
+    let angularVel = 0;
+
+    let tiltX = 0;
+    let tiltY = 0;
+
+    const friction = 0.92;
+    const baseSensitivity = 0.001;
+    const exponent = 2.2;
+    const staticThreshold = 1.5;
+
+    function calculateExponentialForce(tilt) {
+      const absTilt = Math.abs(tilt);
+      if (absTilt <= staticThreshold) return 0;
+      const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
+      return Math.sign(tilt) * force;
+    }
+
+    function animate() {
+      const screenW = viewport.clientWidth;
+      const screenH = viewport.clientHeight;
+
+      const forceX = calculateExponentialForce(tiltX);
+      const forceY = calculateExponentialForce(tiltY);
+
+      vx += forceX;
+      vy += forceY;
+      vx *= friction;
+      vy *= friction;
+
+      const speed = Math.hypot(vx, vy);
+      if (speed > 0.05) {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const cross = cos * vy - sin * vx;
+        angularVel += cross * 0.002;
+      }
+
+      angularVel *= 0.72;
+      angle += angularVel;
+
+      posX += vx;
+      posY += vy;
+
+      const margin = 120;
+      const minX = -margin;
+      const maxX = screenW + margin;
+      const minY = -margin;
+      const maxY = screenH + margin;
+
+      if (posX < minX) { posX = minX; vx = 0; }
+      if (posX > maxX) { posX = maxX; vx = 0; }
+      if (posY < minY) { posY = minY; vy = 0; }
+      if (posY > maxY) { posY = maxY; vy = 0; }
+
+      const drawX = Math.round(posX - lineLength / 2);
+      const drawY = Math.round(posY);
+      const drawAngle = Math.round(angle * 100) / 100;
+
+      line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
+
+      requestAnimationFrame(animate);
+    }
+
+    function handleOrientation(event) {
+      if (event.gamma !== null && event.beta !== null) {
+        let g = event.gamma;
+        let b = event.beta;
+
+        const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
+        if (orientation === 90) {
+          tiltX = -b;
+          tiltY = g;
+        } else if (orientation === -90) {
+          tiltX = b;
+          tiltY = -g;
+        } else {
+          tiltX = g;
+          tiltY = b;
+        }
+
+        tiltX = Math.max(-45, Math.min(45, tiltX));
+        tiltY = Math.max(-45, Math.min(45, tiltY));
+      }
+    }
+
+    function enableSensor() {
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
+        return;
+      }
+
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+              sensorBtn.style.display = 'none';
+            } else {
+              showError('センサーへのアクセスが拒否されました。');
+            }
+          })
+          .catch(() => showError('センサー起動エラーが発生しました。'));
+      } else if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        sensorBtn.style.display = 'none';
+      } else {
+        showError('お使いの端末は傾きセンサーに対応していません。');
+      }
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      sensorBtn.style.display = 'none';
+    }
+
+    sensorBtn.addEventListener('click', enableSensor);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
