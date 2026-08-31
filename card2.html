@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>iPhone対応 触覚・階層体験</title>
+  <title>iPhone対応 メカニカル触覚体験</title>
   <style>
     * {
       box-sizing: border-box;
@@ -18,7 +18,7 @@
       height: 100vh;
       overflow: hidden;
       background-color: #0a0a0a;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, monospace;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -44,11 +44,11 @@
 
     /* 深層（奥のレイヤー） */
     .layer-deep {
-      background: #18002e;
-      border: 2px solid #a855f7;
-      color: #a855f7;
+      background: #0f172a;
+      border: 2px solid #38bdf8;
+      color: #38bdf8;
       transform: translateZ(-120px);
-      box-shadow: 0 0 30px rgba(168, 85, 247, 0.25);
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.25);
     }
 
     /* 浅層（手前のカード） */
@@ -64,7 +64,7 @@
     .title {
       font-size: 16px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
     }
 
     .desc {
@@ -86,8 +86,8 @@
     }
 
     .layer-deep .badge {
-      background: #a855f7;
-      color: #fff;
+      background: #38bdf8;
+      color: #0f172a;
     }
   </style>
 </head>
@@ -96,147 +96,9 @@
   <div class="viewport">
     <div class="layer layer-deep" id="layerDeep">
       <div>
-        <div class="title">LAYER 02 : DEEP</div>
+        <div class="title">LAYER 02 : MECHANICAL</div>
         <p class="desc">
-          【破断完了】<br>
-          層の境界線を突破しました。<br>
-          引っ張る重さが変化した感触が得られます。
-        </p>
-      </div>
-      <div class="badge">ZONE: HEAVY</div>
-    </div>
-
-    <div class="layer layer-surface" id="layerSurface">
-      <div>
-        <div class="title">PULL DOWN (iOS READY)</div>
-        <p class="desc">
-          ゆっくり下に引っ張ってください。<br>
-          途中で手ごたえ（引き伸ばしの重さ）が変化し、カチッと奥の層へハマる疑似触覚を再現しています。
-        </p>
-      </div>
-      <div class="badge" id="statusBadge">DEPTH: 0px</div>
-    </div>
-  </div>
-
-  <script>
-    const surface = document.getElementById('layerSurface');
-    const deep = document.getElementById('layerDeep');
-    const badge = document.getElementById('statusBadge');
-
-    let startY = 0;
-    let isDragging = false;
-    let hasCrossed = false;
-
-    // Web Audio APIによる疑似触覚クリック音（iPhone用）
-    let audioCtx = null;
-
-    function playClickSound(freq, duration) {
-      try {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        
-        // 短い音の減衰（クリック感）
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-      } catch (e) {}
-    }
-
-    function onPointerDown(e) {
-      isDragging = true;
-      startY = e.pageY || (e.touches ? e.touches[0].pageY : 0);
-      surface.style.transition = 'none';
-      deep.style.transition = 'none';
-      
-      // 初回タップ時にオーディオコンテキストを初期化
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-    }
-
-    function onPointerMove(e) {
-      if (!isDragging) return;
-
-      const pageY = e.pageY || (e.touches ? e.touches[0].pageY : 0);
-      const rawDeltaY = Math.max(0, pageY - startY);
-
-      // --- 擬似触覚ロジック：引っ張る抵抗率の変化 ---
-      let renderY = 0;
-      const THRESHOLD = 110; // 境界線
-
-      if (rawDeltaY < THRESHOLD) {
-        // 1. 浅い層：指の動きに素直に追従（軽い触感）
-        renderY = rawDeltaY;
-        badge.textContent = `DEPTH: ${Math.round(renderY)}px (LIGHT)`;
-        badge.style.background = '#111';
-
-        if (hasCrossed) {
-          hasCrossed = false;
-          playClickSound(400, 0.03); // 戻った時の高いクリック音
-        }
-      } else {
-        // 2. 境界突破：指の動きに対して急速にブレーキがかかる（引っ掛かり・粘り気の演出）
-        const overDistance = rawDeltaY - THRESHOLD;
-        renderY = THRESHOLD + Math.pow(overDistance, 0.65); // 指の動きを減衰させる
-        
-        badge.textContent = `DEPTH: ${Math.round(renderY)}px (HEAVY)`;
-        badge.style.background = '#a855f7';
-
-        // 境界線を跨いだ「その瞬間」に視覚の跳ねと低音のクリック音を発火
-        if (!hasCrossed) {
-          hasCrossed = true;
-          playClickSound(120, 0.08); // 突破時の低い「ドスン」という音
-        }
-      }
-
-      // ビジュアル連動
-      surface.style.transform = `translateY(${renderY}px) scale(${1 - renderY * 0.0006})`;
-      deep.style.transform = `translateZ(${-120 + renderY * 0.6}px) scale(${0.88 + renderY * 0.0006})`;
-    }
-
-    function onPointerUp() {
-      if (!isDragging) return;
-      isDragging = false;
-
-      // バネのような弾性で元に戻る
-      surface.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.25)';
-      deep.style.transition = 'transform 0.4s ease';
-
-      surface.style.transform = 'translateY(0px) scale(1)';
-      deep.style.transform = 'translateZ(-120px) scale(1)';
-
-      badge.textContent = 'DEPTH: 0px';
-      badge.style.background = '#111';
-
-      if (hasCrossed) {
-        playClickSound(300, 0.04);
-      }
-      hasCrossed = false;
-    }
-
-    // タッチ＆マウスイベント
-    surface.addEventListener('touchstart', onPointerDown, { passive: true });
-    window.addEventListener('touchmove', onPointerMove, { passive: true });
-    window.addEventListener('touchend', onPointerUp);
-
-    surface.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('mousemove', onPointerMove);
-    window.addEventListener('mouseup', onPointerUp);
-  </script>
-</body>
-</html>
+          【ロック解除】<br>
+          層のラチェット機構を通過しました。<br>
+          機械的な衝撃音と抵抗が発生しています。
+        </p
