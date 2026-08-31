@@ -5,17 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リアルに転がるシャー芯</title>
   <style>
-    :root {
-      /* 白背景ベースの配色 */
-      --bg-color: #ffffff;        /* 背景：真っ白 */
-      --card-bg: #f8f9fa;        /* 明るいグレーのカード */
-      --text-primary: #1a1a1a;   /* 濃いグレー（テキスト） */
-      --text-secondary: #555555; /* セカンダリテキスト */
-      --accent-color: #333333;   /* アクセントカラー */
-      --line-color: #111111;     /* シャー芯（くっきり見せる黒） */
-      --shadow-color: rgba(0, 0, 0, 0.2);
-    }
-
     * {
       box-sizing: border-box;
       margin: 0;
@@ -23,67 +12,12 @@
     }
 
     body {
-      background-color: var(--bg-color);
+      background-color: #ffffff;
       height: 100vh;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: var(--text-primary);
       user-select: none;
       touch-action: none;
-    }
-
-    /* 背景：Webサイト風レイアウト */
-    .site-background {
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px 20px 60px;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      opacity: 0.95;
-      pointer-events: none;
-    }
-
-    .site-header {
-      border-bottom: 2px solid #e0e0e0;
-      padding-bottom: 12px;
-      margin-top: 50px;
-    }
-
-    .site-title {
-      font-size: 20px;
-      font-weight: bold;
-      color: var(--text-primary);
-    }
-
-    .site-subtitle {
-      font-size: 12px;
-      color: var(--text-secondary);
-      font-weight: bold;
-      margin-top: 4px;
-    }
-
-    .article-card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 18px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      border: 1px solid #e5e7eb;
-    }
-
-    .article-title {
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: var(--text-primary);
-    }
-
-    .article-text {
-      font-size: 12px;
-      line-height: 1.6;
-      color: var(--text-secondary);
     }
 
     /* 物理描画層 */
@@ -100,8 +34,8 @@
     .target-line {
       width: 220px;
       height: 1px;
-      background-color: var(--line-color);
-      box-shadow: 0px 1px 2px var(--shadow-color);
+      background-color: #111111;
+      box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2);
       position: absolute;
       top: 0;
       left: 0;
@@ -115,7 +49,7 @@
       left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px;
-      background: #1a1a1a;
+      background: #111111;
       color: #ffffff;
       border: none;
       border-radius: 20px;
@@ -144,30 +78,6 @@
   </style>
 </head>
 <body>
-
-  <!-- 背景要素（白ベース版） -->
-  <div class="site-background">
-    <header class="site-header">
-      <div class="site-title">Creative Web Notes</div>
-      <div class="site-subtitle">● DESIGN & PHYSICS SIMULATION</div>
-    </header>
-
-    <main style="display: flex; flex-direction: column; gap: 12px;">
-      <article class="article-card">
-        <h2 class="article-title">カラーパレットと視認性のバランス</h2>
-        <p class="article-text">
-          背景色にくすみカラーを採用することで、洗練されたデザインを保ちつつ、微細なグラフィックオブジェクトの動きを際立たせることができます。
-        </p>
-      </article>
-
-      <article class="article-card">
-        <h2 class="article-title">ジャイロセンサーの加速度カーブ</h2>
-        <p class="article-text">
-          傾き角度に対して指数関数的な加速度を設定することで、直感的で心地よい物理的な手応えをユーザーに提供することが可能です。
-        </p>
-      </article>
-    </main>
-  </div>
 
   <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
   <div class="error-msg" id="error-msg"></div>
