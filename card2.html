@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>iPhone対応 触覚・階層体験（完全動作版）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <title>iPhone対応 触覚・階層体験（完全ズーム防止版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -11,23 +11,26 @@
       padding: 0;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
-    body {
-      width: 100vw;
-      height: 100vh;
+    html, body {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
+      position: fixed; /* 画面のスクロール・バウンスを強制防止 */
       background-color: #0a0a0a;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
+      touch-action: none;
     }
 
     .viewport {
       position: relative;
-      width: 320px;
-      height: 460px;
+      width: 300px;
+      height: 440px;
       perspective: 1000px;
     }
 
@@ -62,7 +65,7 @@
     }
 
     .title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.5px;
     }
@@ -71,7 +74,7 @@
       font-size: 12px;
       line-height: 1.6;
       opacity: 0.8;
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
     .badge {
@@ -88,6 +91,16 @@
     .layer-deep .badge {
       background: #a855f7;
       color: #fff;
+    }
+
+    .notice {
+      position: absolute;
+      bottom: -35px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #666;
+      font-size: 10px;
     }
   </style>
 </head>
@@ -116,6 +129,8 @@
       </div>
       <div class="badge" id="statusBadge">DEPTH: 0px</div>
     </div>
+
+    <div class="notice">※ 音が出ない場合はマナーモードを解除してください</div>
   </div>
 
   <script>
@@ -127,87 +142,90 @@
     let isDragging = false;
     let hasCrossed = false;
 
-    // Web Audio APIによる機械音（メカニカル・クリック）
+    // Web Audio APIの初期化
     let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
 
     function playMechanicalSound(type) {
       try {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
+        initAudio();
+        if (!audioCtx) return;
 
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         const now = audioCtx.currentTime;
 
         if (type === 'break') {
-          // 重厚な「ガチッ」という低音ラチェット音（ノコギリ波）
+          // ガチッ（ノコギリ波：高音量）
           osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(300, now);
-          osc.frequency.exponentialRampToValueAtTime(30, now + 0.05);
+          osc.frequency.setValueAtTime(350, now);
+          osc.frequency.exponentialRampToValueAtTime(40, now + 0.06);
 
-          gain.gain.setValueAtTime(0.25, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          gain.gain.setValueAtTime(0.5, now); // 音量をアップ
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
           osc.connect(gain);
           gain.connect(audioCtx.destination);
 
           osc.start(now);
-          osc.stop(now + 0.05);
+          osc.stop(now + 0.06);
 
         } else if (type === 'light') {
-          // 軽快な「チッ」というスイッチ音（矩形波）
+          // チッ（矩形波）
           osc.type = 'square';
-          osc.frequency.setValueAtTime(750, now);
-          osc.frequency.exponentialRampToValueAtTime(120, now + 0.02);
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(150, now + 0.03);
 
-          gain.gain.setValueAtTime(0.08, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+          gain.gain.setValueAtTime(0.2, now); // 音量をアップ
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
 
           osc.connect(gain);
           gain.connect(audioCtx.destination);
 
           osc.start(now);
-          osc.stop(now + 0.02);
+          osc.stop(now + 0.03);
         }
       } catch (e) {}
     }
 
     function onPointerDown(e) {
+      initAudio(); // タップした瞬間にAudioを復帰
       isDragging = true;
-      startY = e.pageY || (e.touches ? e.touches[0].pageY : 0);
+
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      startY = clientY;
+
       surface.style.transition = 'none';
       deep.style.transition = 'none';
-      
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
     }
 
     function onPointerMove(e) {
       if (!isDragging) return;
 
-      const pageY = e.pageY || (e.touches ? e.touches[0].pageY : 0);
-      const rawDeltaY = Math.max(0, pageY - startY);
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const rawDeltaY = Math.max(0, clientY - startY);
 
       let renderY = 0;
-      const THRESHOLD = 110; // 境界線
+      const THRESHOLD = 110;
 
       if (rawDeltaY < THRESHOLD) {
-        // 1. 浅い層：指の動きに素直に追従
         renderY = rawDeltaY;
         badge.textContent = `DEPTH: ${Math.round(renderY)}px (LIGHT)`;
         badge.style.background = '#111';
 
         if (hasCrossed) {
           hasCrossed = false;
-          playMechanicalSound('light'); // 戻った時の「チッ」という音
+          playMechanicalSound('light');
         }
       } else {
-        // 2. 境界突破：指の動きに対してブレーキ（重さ）がかかる
         const overDistance = rawDeltaY - THRESHOLD;
         renderY = THRESHOLD + Math.pow(overDistance, 0.65);
         
@@ -216,11 +234,10 @@
 
         if (!hasCrossed) {
           hasCrossed = true;
-          playMechanicalSound('break'); // 突破時の「ガチッ」という音
+          playMechanicalSound('break');
         }
       }
 
-      // ビジュアル連動
       surface.style.transform = `translateY(${renderY}px) scale(${1 - renderY * 0.0006})`;
       deep.style.transform = `translateZ(${-120 + renderY * 0.6}px) scale(${0.88 + renderY * 0.0006})`;
     }
@@ -229,7 +246,6 @@
       if (!isDragging) return;
       isDragging = false;
 
-      // バネのような弾性で元に戻る
       surface.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.25)';
       deep.style.transition = 'transform 0.4s ease';
 
@@ -245,7 +261,7 @@
       hasCrossed = false;
     }
 
-    // タッチ＆マウスイベント
+    // イベント登録（PointerEvents & TouchEvents）
     surface.addEventListener('touchstart', onPointerDown, { passive: true });
     window.addEventListener('touchmove', onPointerMove, { passive: true });
     window.addEventListener('touchend', onPointerUp);
