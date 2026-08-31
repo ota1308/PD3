@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>リアルに転がる髪の毛／まつ毛</title>
+  <title>リアルに転がる髪の毛</title>
   <style>
     * {
       box-sizing: border-box;
@@ -32,46 +32,43 @@
       z-index: 10;
     }
 
-    /* まつ毛・髪の毛の見た目設定 */
-    .target-line {
-      width: 140px;                 /* 少し短くして毛らしさを表現 */
-      height: 2px;                  /* 中央の太さ */
-      background-color: #1a1a1a;
+    /* 髪の毛要素のコンテナ */
+    .target-hair {
+      width: 180px;
+      height: 30px;
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
-
-      /* 毛のようにしなやかなカーブをつける */
-      border-radius: 50% 100% 0% 100%;
-      box-shadow: 0px 1px 1.5px rgba(0, 0, 0, 0.15);
+      pointer-events: none;
+      filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.15));
     }
 
-    /* 先端を先細りにするための擬似要素 */
-    .target-line::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      right: -2px;
-      width: 20px;
+    /* 髪の毛を描くSVG */
+    .target-hair svg {
+      width: 100%;
       height: 100%;
-      background: linear-gradient(to right, #1a1a1a, transparent);
-      border-radius: 50%;
+      display: block;
     }
   </style>
 </head>
 <body>
 
   <div class="viewport" id="viewport">
-    <div class="target-line" id="line"></div>
+    <div class="target-hair" id="line">
+      <!-- 自然なうねりと先細りを持つ髪の毛のSVGパス -->
+      <svg viewBox="0 0 180 30" preserveAspectRatio="none">
+        <path d="M 5,20 Q 40,5 90,15 T 175,10 C 177,10.2 177,10.8 175,11 Q 130,22 90,17 T 5,21 Z" fill="#1a1a1a" />
+      </svg>
+    </div>
   </div>
 
   <script>
     const line = document.getElementById('line');
     const viewport = document.getElementById('viewport');
 
-    const lineLength = 140;
+    const hairWidth = 180;
     let posX = viewport.clientWidth / 2;
     let posY = viewport.clientHeight / 2;
     let vx = 0;
@@ -131,8 +128,8 @@
       if (posY < minY) { posY = minY; vy = 0; }
       if (posY > maxY) { posY = maxY; vy = 0; }
 
-      const drawX = Math.round(posX - lineLength / 2);
-      const drawY = Math.round(posY);
+      const drawX = Math.round(posX - hairWidth / 2);
+      const drawY = Math.round(posY - 15);
       const drawAngle = Math.round(angle * 100) / 100;
 
       line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
