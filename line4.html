@@ -2,13 +2,16 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
   <title>リアルに滑り落ちる髪の毛</title>
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     body {
@@ -16,9 +19,10 @@
       height: 100vh;
       width: 100vw;
       overflow: hidden;
-      user-select: none;
-      touch-action: none;
+      position: fixed;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none;
+      cursor: pointer;
     }
 
     /* 物理描画層 */
@@ -150,11 +154,11 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    /* 「ふわっと滑る」ための物理パラメータ調整 */
-    const friction = 0.86;          /* 空気抵抗・摩擦を高めて減速をなめらかに (0.92 → 0.86) */
-    const baseSensitivity = 0.0006; /* 加速度を小さくし、ゆるやかに滑り出す設定に */
-    const exponent = 1.8;           /* 傾きに対する反応をなだらかにし、唐突な動きを抑える */
-    const staticThreshold = 1.0;    /* 動き出しの閾値を下げて微細な傾きにじわっと反応 */
+    /* スピードアップ & 回転しやすく調整したパラメータ */
+    const friction = 0.90;          /* 滑りを少し良くして最高速度アップ (0.86 → 0.90) */
+    const baseSensitivity = 0.0010; /* 加速度をやや強化 (0.0006 → 0.0010) */
+    const exponent = 1.6;           /* 傾きへの反応をほんの少し鋭く (1.8 → 1.6) */
+    const staticThreshold = 1.0;
 
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
@@ -177,17 +181,17 @@
 
       const speed = Math.hypot(vx, vy);
 
-      /* 髪の毛特有の「滑り」を再現：くるくる回らず、移動方向に沿うようなゆるい回転 */
+      /* 移動に伴う回転トルク計算 */
       if (speed > 0.05) {
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const cross = cos * vy - sin * vx;
-        /* 回転トルクを弱めて、クルクル回るのではなく自然にしなって向きが変わる挙動に */
-        angularVel += cross * 0.0004; 
+        /* 回転がかかりやすく数値を引き上げ (0.0004 → 0.0012) */
+        angularVel += cross * 0.0012; 
       }
 
-      /* 強い回転減衰（くるくる回転するのを素早く抑える） */
-      angularVel *= 0.60;
+      /* 回転ブレーキを少し緩めて余韻で回るように変更 (0.60 → 0.75) */
+      angularVel *= 0.75;
       angle += angularVel;
 
       posX += vx;
@@ -213,6 +217,7 @@
       requestAnimationFrame(animate);
     }
 
+    /* 横持ち・縦持ちの向き補正 */
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
         let g = event.gamma;
@@ -220,11 +225,14 @@
 
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
         if (orientation === 90) {
-          tiltX = -b;
-          tiltY = g;
-        } else if (orientation === -90) {
           tiltX = b;
           tiltY = -g;
+        } else if (orientation === -90) {
+          tiltX = -b;
+          tiltY = g;
+        } else if (orientation === 180) {
+          tiltX = -g;
+          tiltY = -b;
         } else {
           tiltX = g;
           tiltY = b;
@@ -267,6 +275,7 @@
     }
 
     sensorBtn.addEventListener('click', enableSensor);
+    window.addEventListener('touchstart', enableSensor, { once: true });
     requestAnimationFrame(animate);
   </script>
 </body>
