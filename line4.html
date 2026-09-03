@@ -220,11 +220,11 @@
 
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
         if (orientation === 90) {
-          tiltX = -b;
-          tiltY = g;
-        } else if (orientation === -90) {
           tiltX = b;
           tiltY = -g;
+        } else if (orientation === -90) {
+          tiltX = -b;
+          tiltY = g;
         } else {
           tiltX = g;
           tiltY = b;
