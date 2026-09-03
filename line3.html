@@ -2,13 +2,16 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>リアルに転がるシャー芯</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <title>リアルに転がるシャー芯（iPad / iPhone補正版）</title>
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     body {
@@ -16,7 +19,7 @@
       height: 100vh;
       width: 100vw;
       overflow: hidden;
-      user-select: none;
+      position: fixed; /* iOSのスクロール・バウンスを強制防止 */
       touch-action: none;
       cursor: pointer;
     }
@@ -42,10 +45,29 @@
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
+      will-change: transform;
+    }
+
+    .guide-notice {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.08);
+      color: #333;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      pointer-events: none;
+      z-index: 20;
+      white-space: nowrap;
     }
   </style>
 </head>
 <body>
+
+  <div class="guide-notice" id="guideNotice">画面をタップしてセンサーとサウンドを有効化</div>
 
   <div class="viewport" id="viewport">
     <div class="target-line" id="line"></div>
@@ -54,10 +76,11 @@
   <script>
     const line = document.getElementById('line');
     const viewport = document.getElementById('viewport');
+    const guideNotice = document.getElementById('guideNotice');
 
     const lineLength = 220;
-    let posX = viewport.clientWidth / 2;
-    let posY = viewport.clientHeight / 2;
+    let posX = window.innerWidth / 2;
+    let posY = window.innerHeight / 2;
     let vx = 0;
     let vy = 0;
     let angle = 0;
@@ -70,6 +93,28 @@
     const baseSensitivity = 0.001;
     const exponent = 2.2;
     const staticThreshold = 1.5;
+
+    // --- Web Audio API（効果音用）---
+    let audioCtx = null;
+    let isAudioUnlocked = false;
+
+    function initAudio() {
+      if (isAudioUnlocked) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      // 無音再生でiOSのガードを通過
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+
+      isAudioUnlocked = true;
+    }
 
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
@@ -124,21 +169,32 @@
       requestAnimationFrame(animate);
     }
 
+    // --- iPad / iPhone 傾きセンサーの上下左右正しく補正する処理 ---
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
-        let g = event.gamma;
-        let b = event.beta;
+        let g = event.gamma; // 左右の傾き (-90 〜 90)
+        let b = event.beta;  // 前後の傾き (-180 〜 180)
 
+        // 画面の向きを取得 (0: 縦, 90: 横時計回り, -90: 横反時計回り, 180: 逆さ縦)
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
-        if (orientation === 90) {
-          tiltX = -b;
-          tiltY = g;
-        } else if (orientation === -90) {
-          tiltX = b;
-          tiltY = -g;
-        } else {
-          tiltX = g;
-          tiltY = b;
+
+        switch (orientation) {
+          case 90: // iPad等の横持ち（右回転）
+            tiltX = b;
+            tiltY = -g;
+            break;
+          case -90: // iPad等の横持ち（左回転）
+            tiltX = -b;
+            tiltY = g;
+            break;
+          case 180: // 逆さ縦持ち
+            tiltX = -g;
+            tiltY = -b;
+            break;
+          default: // 通常の縦持ち (0)
+            tiltX = g;
+            tiltY = b;
+            break;
         }
 
         tiltX = Math.max(-45, Math.min(45, tiltX));
@@ -146,22 +202,28 @@
       }
     }
 
-    function enableSensor() {
+    // センサー・音声の初回アンロック機能
+    function enableSensors() {
+      initAudio();
+
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(permissionState => {
             if (permissionState === 'granted') {
               window.addEventListener('deviceorientation', handleOrientation, true);
+              if (guideNotice) guideNotice.style.display = 'none';
             }
           })
           .catch(() => {});
       } else if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', handleOrientation, true);
+        if (guideNotice) guideNotice.style.display = 'none';
       }
     }
 
-    window.addEventListener('click', enableSensor, { once: true });
-    window.addEventListener('touchstart', enableSensor, { once: true });
+    window.addEventListener('click', enableSensors, { once: true });
+    window.addEventListener('touchstart', enableSensors, { once: true });
+
     requestAnimationFrame(animate);
   </script>
 </body>
