@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 画面拡大・ピンチイン防止を追加 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
   <title>リアルに転がるシャー芯</title>
   <style>
     :root {
@@ -20,16 +21,21 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     body {
       background-color: var(--bg-color);
       height: 100vh;
+      width: 100vw;
       overflow: hidden;
+      position: fixed; /* バウンス・スクロール防止 */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text-primary);
-      user-select: none;
       touch-action: none;
+      cursor: pointer;
     }
 
     /* 背景：Webサイト風レイアウト */
@@ -107,6 +113,7 @@
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
+      will-change: transform;
     }
 
     .sensor-btn {
@@ -183,8 +190,8 @@
     const errorMsg = document.getElementById('error-msg');
 
     const lineLength = 220;
-    let posX = viewport.clientWidth / 2;
-    let posY = viewport.clientHeight / 2;
+    let posX = window.innerWidth / 2;
+    let posY = window.innerHeight / 2;
     let vx = 0;
     let vy = 0;
     let angle = 0;
@@ -251,21 +258,31 @@
       requestAnimationFrame(animate);
     }
 
+    // --- 上下左右反転を補正したセンサー計算関数 ---
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
-        let g = event.gamma;
-        let b = event.beta;
+        let g = event.gamma; // 左右 (-90 〜 90)
+        let b = event.beta;  // 前後 (-180 〜 180)
 
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
-        if (orientation === 90) {
-          tiltX = -b;
-          tiltY = g;
-        } else if (orientation === -90) {
-          tiltX = b;
-          tiltY = -g;
-        } else {
-          tiltX = g;
-          tiltY = b;
+
+        switch (orientation) {
+          case 90: // iPad等の横持ち（右回転）
+            tiltX = b;   // 正しい方向に修正 (-b -> b)
+            tiltY = -g;  // 正しい方向に修正 (g -> -g)
+            break;
+          case -90: // iPad等の横持ち（左回転）
+            tiltX = -b;  // 正しい方向に修正 (b -> -b)
+            tiltY = g;   // 正しい方向に修正 (-g -> g)
+            break;
+          case 180: // 逆さ縦持ち
+            tiltX = -g;
+            tiltY = -b;
+            break;
+          default: // 通常の縦持ち (0)
+            tiltX = g;
+            tiltY = b;
+            break;
         }
 
         tiltX = Math.max(-45, Math.min(45, tiltX));
@@ -305,6 +322,9 @@
     }
 
     sensorBtn.addEventListener('click', enableSensor);
+    // 画面のどこをタップしてもスタートできるように設定
+    window.addEventListener('touchstart', enableSensor, { once: true });
+    
     requestAnimationFrame(animate);
   </script>
 </body>
