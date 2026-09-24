@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（ボタン許可版）</title>
+  <title>リアルに転がるシャー芯（高感度版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -102,7 +102,7 @@
 
     const lineLength = 220;
 
-    // 個体差をつけるため、各芯に摩擦係数(friction)や感度(sensitivityMult)をランダム気味に設定
+    // 各芯ごとに少しずつ異なる運動特性を持たせる
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -110,7 +110,7 @@
         posY: window.innerHeight / 2 - 40,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.915,
+        friction: 0.92,
         sensitivityMult: 0.95
       },
       {
@@ -119,8 +119,8 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.925,
-        sensitivityMult: 1.05
+        friction: 0.93,
+        sensitivityMult: 1.08
       },
       {
         el: document.getElementById('line3'),
@@ -128,7 +128,7 @@
         posY: window.innerHeight / 2 + 45,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.91,
+        friction: 0.915,
         sensitivityMult: 1.0
       }
     ];
@@ -136,9 +136,10 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    const baseSensitivity = 0.001;
-    const exponent = 2.2;
-    const staticThreshold = 1.5;
+    // --- 低傾斜時の感度チューニング ---
+    const baseSensitivity = 0.0025; // 基礎移動感度を底上げ（0.001 -> 0.0025）
+    const exponent = 1.6;           // 指数を下げて微小な傾きでも動きやすく（2.2 -> 1.6）
+    const staticThreshold = 0.3;    // 動き出す傾きの閾値を大幅に軽減（1.5° -> 0.3°）
 
     // --- Web Audio API（効果音用）---
     let audioCtx = null;
@@ -164,6 +165,7 @@
 
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
+      // 小さな傾き（0.3度以下）のみ動きを止める
       if (absTilt <= staticThreshold) return 0;
       const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
       return Math.sign(tilt) * force;
@@ -189,7 +191,7 @@
         item.vy *= item.friction;
 
         const speed = Math.hypot(item.vx, item.vy);
-        if (speed > 0.05) {
+        if (speed > 0.02) {
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           const cross = cos * item.vy - sin * item.vx;
