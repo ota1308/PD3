@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（拡大版）</title>
+  <title>リアルに転がるシャー芯（拡大・スピーディー版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -102,10 +102,10 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // 芯の長さを 220px -> 320px に変更
+    // 芯の長さ 320px
     const lineLength = 320;
 
-    // 各芯の初期位置と物理パラメーター
+    // 各芯の初期位置と物理パラメーター（摩擦抵抗を減らして滑りを高速化）
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -113,7 +113,7 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.92,
+        friction: 0.965,
         sensitivityMult: 0.95
       },
       {
@@ -122,7 +122,7 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.93,
+        friction: 0.975,
         sensitivityMult: 1.08
       },
       {
@@ -131,7 +131,7 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.915,
+        friction: 0.96,
         sensitivityMult: 1.0
       }
     ];
@@ -139,10 +139,10 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // 高感度設定
-    const baseSensitivity = 0.0025;
-    const exponent = 1.6;
-    const staticThreshold = 0.3;
+    // 高速移動用パラメーター調整
+    const baseSensitivity = 0.008; // 0.0025 -> 0.008 に引き上げて加速速度を大幅UP
+    const exponent = 1.4;          // 反応をよりクイックに
+    const staticThreshold = 0.1;   // 0.3 -> 0.1 に下げて少しの傾きで滑り出すように設定
 
     // --- Web Audio API（効果音用）---
     let audioCtx = null;
@@ -195,10 +195,10 @@
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * 0.002;
+          item.angularVel += cross * 0.005; // 速度に合わせて回転反応も調整
         }
 
-        item.angularVel *= 0.72;
+        item.angularVel *= 0.78;
         item.angle += item.angularVel;
 
         item.posX += item.vx;
