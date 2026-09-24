@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（高速版）</title>
+  <title>リアルに転がるシャー芯（拡大版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,7 +35,7 @@
       z-index: 10;
     }
 
-    /* シャー芯（拡大サイズ維持） */
+    /* シャー芯の拡大調整 (長さを320px、太さを3pxに拡張) */
     .target-line {
       width: 320px;
       height: 3px;
@@ -102,9 +102,10 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
+    // 芯の長さを 220px -> 320px に変更
     const lineLength = 320;
 
-    // 各芯の物理特性（摩擦抵抗を大幅に下げて滑りを向上）
+    // 各芯の初期位置と物理パラメーター
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -112,7 +113,7 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.965, // 摩擦を低減してスピードキープ
+        friction: 0.92,
         sensitivityMult: 0.95
       },
       {
@@ -121,8 +122,8 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.975, // 一番よく滑る芯
-        sensitivityMult: 1.12
+        friction: 0.93,
+        sensitivityMult: 1.08
       },
       {
         el: document.getElementById('line3'),
@@ -130,18 +131,18 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.96,
-        sensitivityMult: 1.02
+        friction: 0.915,
+        sensitivityMult: 1.0
       }
     ];
 
     let tiltX = 0;
     let tiltY = 0;
 
-    // 高速移動用チューニング
-    const baseSensitivity = 0.007; // 加速力を大幅UP (0.0025 -> 0.007)
-    const exponent = 1.4;          // 応答性をさらにクイックに (1.6 -> 1.4)
-    const staticThreshold = 0.2;   // 静止摩擦閾値をさらに引き下げ
+    // 高感度設定
+    const baseSensitivity = 0.0025;
+    const exponent = 1.6;
+    const staticThreshold = 0.3;
 
     // --- Web Audio API（効果音用）---
     let audioCtx = null;
@@ -194,10 +195,10 @@
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * 0.006; // 回転反応速度を上昇
+          item.angularVel += cross * 0.002;
         }
 
-        item.angularVel *= 0.80;
+        item.angularVel *= 0.72;
         item.angle += item.angularVel;
 
         item.posX += item.vx;
