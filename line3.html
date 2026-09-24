@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（高感度版）</title>
+  <title>リアルに転がるシャー芯（拡大版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,11 +35,13 @@
       z-index: 10;
     }
 
+    /* シャー芯の拡大調整 (長さを320px、太さを3pxに拡張) */
     .target-line {
-      width: 220px;
-      height: 1px;
+      width: 320px;
+      height: 3px;
       background-color: #111111;
-      box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2);
+      border-radius: 1px;
+      box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.25);
       position: absolute;
       top: 0;
       left: 0;
@@ -100,14 +102,15 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    const lineLength = 220;
+    // 芯の長さを 220px -> 320px に変更
+    const lineLength = 320;
 
-    // 各芯ごとに少しずつ異なる運動特性を持たせる
+    // 各芯の初期位置と物理パラメーター
     const lines = [
       {
         el: document.getElementById('line1'),
         posX: window.innerWidth / 2 - 20,
-        posY: window.innerHeight / 2 - 40,
+        posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
         friction: 0.92,
@@ -125,7 +128,7 @@
       {
         el: document.getElementById('line3'),
         posX: window.innerWidth / 2 - 5,
-        posY: window.innerHeight / 2 + 45,
+        posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
         friction: 0.915,
@@ -136,10 +139,10 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // --- 低傾斜時の感度チューニング ---
-    const baseSensitivity = 0.0025; // 基礎移動感度を底上げ（0.001 -> 0.0025）
-    const exponent = 1.6;           // 指数を下げて微小な傾きでも動きやすく（2.2 -> 1.6）
-    const staticThreshold = 0.3;    // 動き出す傾きの閾値を大幅に軽減（1.5° -> 0.3°）
+    // 高感度設定
+    const baseSensitivity = 0.0025;
+    const exponent = 1.6;
+    const staticThreshold = 0.3;
 
     // --- Web Audio API（効果音用）---
     let audioCtx = null;
@@ -165,7 +168,6 @@
 
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
-      // 小さな傾き（0.3度以下）のみ動きを止める
       if (absTilt <= staticThreshold) return 0;
       const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
       return Math.sign(tilt) * force;
@@ -179,14 +181,12 @@
       const baseForceY = calculateExponentialForce(tiltY);
 
       lines.forEach(item => {
-        // 各芯ごとの感度倍率を掛け合わせて力を計算
         const forceX = baseForceX * item.sensitivityMult;
         const forceY = baseForceY * item.sensitivityMult;
 
         item.vx += forceX;
         item.vy += forceY;
 
-        // 各芯固有の摩擦係数を適用
         item.vx *= item.friction;
         item.vy *= item.friction;
 
@@ -204,7 +204,7 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
-        const margin = 120;
+        const margin = 160;
         const minX = -margin;
         const maxX = screenW + margin;
         const minY = -margin;
