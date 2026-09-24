@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（拡大・スピーディー・安定回転版）</title>
+  <title>リアルに転がるシャー芯（拡大・初期速度版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,7 +35,7 @@
       z-index: 10;
     }
 
-    /* シャー芯の拡大調整 (長さを320px、太さを3pxに拡張) */
+    /* シャー芯（拡大サイズを維持: 長さ320px, 太さ3px） */
     .target-line {
       width: 320px;
       height: 3px;
@@ -50,7 +50,7 @@
       will-change: transform;
     }
 
-    /* センサー開始ボタン（統一デザイン） */
+    /* センサー開始ボタン */
     .sensor-btn {
       position: absolute;
       top: 20px;
@@ -102,10 +102,9 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // 芯の長さ 320px
     const lineLength = 320;
 
-    // 滑りやすさは高速設定を維持
+    // 各芯の物理パラメーター（一番最初の設定に戻しました）
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -113,7 +112,7 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.965,
+        friction: 0.92,
         sensitivityMult: 0.95
       },
       {
@@ -122,7 +121,7 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.975,
+        friction: 0.93,
         sensitivityMult: 1.08
       },
       {
@@ -131,7 +130,7 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.96,
+        friction: 0.915,
         sensitivityMult: 1.0
       }
     ];
@@ -139,10 +138,10 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // 移動の高速化設定（維持）
-    const baseSensitivity = 0.008;
-    const exponent = 1.4;
-    const staticThreshold = 0.1;
+    // 一番最初の感度設定
+    const baseSensitivity = 0.0025;
+    const exponent = 1.6;
+    const staticThreshold = 0.3;
 
     // --- Web Audio API（効果音用）---
     let audioCtx = null;
@@ -156,7 +155,6 @@
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
-      // 無音再生でiOSのガードを通過
       const buf = audioCtx.createBuffer(1, 1, 22050);
       const src = audioCtx.createBufferSource();
       src.buffer = buf;
@@ -195,10 +193,10 @@
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * 0.002; // 回転トルクを前の値(0.002)へ復元
+          item.angularVel += cross * 0.002;
         }
 
-        item.angularVel *= 0.72; // 回転減衰率を前の値(0.72)へ復元
+        item.angularVel *= 0.72;
         item.angle += item.angularVel;
 
         item.posX += item.vx;
