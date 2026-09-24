@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（ボタン許可版）</title>
+  <title>リアルに転がるシャー芯 3本（衝突音・物理付き）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -15,16 +15,15 @@
     }
 
     body {
-      background-color: #ffffff;
+      background-color: #f5f5f7;
       height: 100vh;
       width: 100vw;
       overflow: hidden;
-      position: fixed; /* iOSのスクロール・バウンスを強制防止 */
+      position: fixed;
       touch-action: none;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 物理描画層 */
     .viewport {
       position: absolute;
       top: 0;
@@ -35,38 +34,38 @@
       z-index: 10;
     }
 
-    .target-line {
+    /* シャー芯（3本共通スタイル） */
+    .lead {
       width: 220px;
-      height: 1px;
-      background-color: #111111;
-      box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2);
+      height: 2px;
+      background: linear-gradient(90deg, #1a1a1a 0%, #333333 50%, #1a1a1a 100%);
+      box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.25);
       position: absolute;
       top: 0;
       left: 0;
+      border-radius: 1px;
       transform-origin: center center;
       backface-visibility: hidden;
       will-change: transform;
     }
 
-    /* センサー開始ボタン（統一デザイン） */
     .sensor-btn {
       position: absolute;
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 10px 20px;
+      padding: 12px 24px;
       background: #111111;
       color: #ffffff;
       border: none;
-      border-radius: 20px;
-      font-size: 13px;
+      border-radius: 24px;
+      font-size: 14px;
       font-weight: bold;
       z-index: 100;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
-    /* エラーメッセージ */
     .error-msg {
       position: absolute;
       top: 20px;
@@ -86,55 +85,120 @@
 </head>
 <body>
 
-  <button class="sensor-btn" id="sensor-btn">タップして傾きセンサーを開始</button>
+  <button class="sensor-btn" id="sensor-btn">タップして体験開始</button>
   <div class="error-msg" id="error-msg"></div>
 
   <div class="viewport" id="viewport">
-    <div class="target-line" id="line"></div>
+    <div class="lead" id="lead-0"></div>
+    <div class="lead" id="lead-1"></div>
+    <div class="lead" id="lead-2"></div>
   </div>
 
   <script>
-    const line = document.getElementById('line');
-    const viewport = document.getElementById('viewport');
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
+    const viewport = document.getElementById('viewport');
 
-    const lineLength = 220;
-    let posX = window.innerWidth / 2;
-    let posY = window.innerHeight / 2;
-    let vx = 0;
-    let vy = 0;
-    let angle = 0;
-    let angularVel = 0;
+    const LINE_LENGTH = 220;
+    const LINE_RADIUS = 1.5; // 当たり判定の厚み半径（px）
+    const NUM_LEADS = 3;
+
+    // 3本のシャー芯の状態保持
+    const leads = [];
+    for (let i = 0; i < NUM_LEADS; i++) {
+      leads.push({
+        el: document.getElementById(`lead-${i}`),
+        x: window.innerWidth / 2 + (i - 1) * 30,
+        y: window.innerHeight / 2 + (i - 1) * 20,
+        vx: 0,
+        vy: 0,
+        angle: (i - 1) * 0.15,
+        angularVel: 0,
+        mass: 1.0
+      });
+    }
 
     let tiltX = 0;
     let tiltY = 0;
 
-    const friction = 0.92;
-    const baseSensitivity = 0.001;
+    const friction = 0.93;
+    const baseSensitivity = 0.0012;
     const exponent = 2.2;
-    const staticThreshold = 1.5;
+    const staticThreshold = 1.2;
 
-    // --- Web Audio API（効果音用）---
+    // --- Web Audio API（リアル音響生成） ---
     let audioCtx = null;
+    let rollGainNode = null;
     let isAudioUnlocked = false;
 
     function initAudio() {
       if (isAudioUnlocked) return;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
-      // 無音再生でiOSのガードを通過
-      const buf = audioCtx.createBuffer(1, 1, 22050);
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.connect(audioCtx.destination);
-      src.start(0);
+
+      // 1. 転がり摩擦音（ピンクノイズジェネレータ）
+      const bufferSize = audioCtx.sampleRate * 2;
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+        output[i] *= 0.11;
+        b6 = white * 0.115926;
+      }
+
+      const whiteNoise = audioCtx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      // フィルター調整（紙や机の上をすべる帯域）
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      filter.Q.setValueAtTime(1.5, audioCtx.currentTime);
+
+      rollGainNode = audioCtx.createGain();
+      rollGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+      whiteNoise.connect(filter);
+      filter.connect(rollGainNode);
+      rollGainNode.connect(audioCtx.destination);
+      whiteNoise.start();
 
       isAudioUnlocked = true;
+    }
+
+    // カチッという芯同士の硬い衝突音
+    function playClackSound(intensity) {
+      if (!audioCtx || !isAudioUnlocked) return;
+      const vol = Math.min(1.0, Math.max(0.05, intensity));
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sine';
+      // シャー芯独特の高音域のクリック音
+      osc.frequency.setValueAtTime(3200 + Math.random() * 800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.015);
+
+      gain.gain.setValueAtTime(vol * 0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.02);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.02);
     }
 
     function calculateExponentialForce(tilt) {
@@ -144,6 +208,58 @@
       return Math.sign(tilt) * force;
     }
 
+    // --- 2D 線分間（芯同士）の最短距離・衝突計算 ---
+    function checkAndResolveCollision(a, b) {
+      const cosA = Math.cos(a.angle), sinA = Math.sin(a.angle);
+      const cosB = Math.cos(b.angle), sinB = Math.sin(b.angle);
+
+      // 芯の端点ベクトル
+      const p1 = { x: a.x - (LINE_LENGTH / 2) * cosA, y: a.y - (LINE_LENGTH / 2) * sinA };
+      const p2 = { x: a.x + (LINE_LENGTH / 2) * cosA, y: a.y + (LINE_LENGTH / 2) * sinA };
+      const q1 = { x: b.x - (LINE_LENGTH / 2) * cosB, y: b.y - (LINE_LENGTH / 2) * sinB };
+      const q2 = { x: b.x + (LINE_LENGTH / 2) * cosB, y: b.y + (LINE_LENGTH / 2) * sinB };
+
+      // 中心間近似衝突ベクトル
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = LINE_RADIUS * 2 + 3;
+
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = minDist - dist;
+
+        // 位置の押し出し補正
+        a.x -= nx * overlap * 0.5;
+        a.y -= ny * overlap * 0.5;
+        b.x += nx * overlap * 0.5;
+        b.y += ny * overlap * 0.5;
+
+        // 相対速度から反発計算
+        const rvx = b.vx - a.vx;
+        const rvy = b.vy - a.vy;
+        const velAlongNormal = rvx * nx + rvy * ny;
+
+        if (velAlongNormal < 0) {
+          const restitution = 0.35; // 芯同士の弾性係数
+          const impulse = -(1 + restitution) * velAlongNormal / 2;
+
+          a.vx -= impulse * nx;
+          a.vy -= impulse * ny;
+          b.vx += impulse * nx;
+          b.vy += impulse * ny;
+
+          // 角度への回転モーメントの付加
+          a.angularVel += (Math.random() - 0.5) * 0.05 * impulse;
+          b.angularVel += (Math.random() - 0.5) * 0.05 * impulse;
+
+          // 衝突音発生
+          playClackSound(Math.abs(velAlongNormal) * 0.2);
+        }
+      }
+    }
+
     function animate() {
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
@@ -151,70 +267,80 @@
       const forceX = calculateExponentialForce(tiltX);
       const forceY = calculateExponentialForce(tiltY);
 
-      vx += forceX;
-      vy += forceY;
-      vx *= friction;
-      vy *= friction;
+      let totalSpeed = 0;
 
-      const speed = Math.hypot(vx, vy);
-      if (speed > 0.05) {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const cross = cos * vy - sin * vx;
-        angularVel += cross * 0.002;
+      // 1. 個別の物理移動計算
+      leads.forEach(lead => {
+        lead.vx += forceX;
+        lead.vy += forceY;
+        lead.vx *= friction;
+        lead.vy *= friction;
+
+        const speed = Math.hypot(lead.vx, lead.vy);
+        totalSpeed += speed;
+
+        if (speed > 0.05) {
+          const cos = Math.cos(lead.angle);
+          const sin = Math.sin(lead.angle);
+          const cross = cos * lead.vy - sin * lead.vx;
+          lead.angularVel += cross * 0.002;
+        }
+
+        lead.angularVel *= 0.75;
+        lead.angle += lead.angularVel;
+
+        lead.x += lead.vx;
+        lead.y += lead.vy;
+
+        // 画面端のバウンド・制限
+        const margin = 80;
+        if (lead.x < -margin) { lead.x = -margin; lead.vx *= -0.3; }
+        if (lead.x > screenW + margin) { lead.x = screenW + margin; lead.vx *= -0.3; }
+        if (lead.y < -margin) { lead.y = -margin; lead.vy *= -0.3; }
+        if (lead.y > screenH + margin) { lead.y = screenH + margin; lead.vy *= -0.3; }
+      });
+
+      // 2. 芯同士のペア当たり判定
+      for (let i = 0; i < NUM_LEADS; i++) {
+        for (let j = i + 1; j < NUM_LEADS; j++) {
+          checkAndResolveCollision(leads[i], leads[j]);
+        }
       }
 
-      angularVel *= 0.72;
-      angle += angularVel;
+      // 3. 音量の更新（全体速度に追従した摩擦音）
+      if (rollGainNode && audioCtx) {
+        const avgSpeed = totalSpeed / NUM_LEADS;
+        const targetGain = Math.min(0.25, Math.max(0, (avgSpeed - 0.2) * 0.04));
+        rollGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.05);
+      }
 
-      posX += vx;
-      posY += vy;
-
-      const margin = 120;
-      const minX = -margin;
-      const maxX = screenW + margin;
-      const minY = -margin;
-      const maxY = screenH + margin;
-
-      if (posX < minX) { posX = minX; vx = 0; }
-      if (posX > maxX) { posX = maxX; vx = 0; }
-      if (posY < minY) { posY = minY; vy = 0; }
-      if (posY > maxY) { posY = maxY; vy = 0; }
-
-      const drawX = Math.round(posX - lineLength / 2);
-      const drawY = Math.round(posY);
-      const drawAngle = Math.round(angle * 100) / 100;
-
-      line.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
+      // 4. DOMの描画更新
+      leads.forEach(lead => {
+        const drawX = Math.round(lead.x - LINE_LENGTH / 2);
+        const drawY = Math.round(lead.y);
+        const drawAngle = Math.round(lead.angle * 1000) / 1000;
+        lead.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
+      });
 
       requestAnimationFrame(animate);
     }
 
-    // --- iPad / iPhone 傾きセンサーの補正処理 ---
+    // 傾きセンサー補正
     function handleOrientation(event) {
       if (event.gamma !== null && event.beta !== null) {
         let g = event.gamma;
         let b = event.beta;
-
         const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
 
         switch (orientation) {
           case 90:
-            tiltX = b;
-            tiltY = -g;
-            break;
+            tiltX = b; tiltY = -g; break;
           case -90:
-            tiltX = -b;
-            tiltY = g;
-            break;
+            tiltX = -b; tiltY = g; break;
           case 180:
-            tiltX = -g;
-            tiltY = -b;
-            break;
+            tiltX = -g; tiltY = -b; break;
           default:
-            tiltX = g;
-            tiltY = b;
-            break;
+            tiltX = g; tiltY = b; break;
         }
 
         tiltX = Math.max(-45, Math.min(45, tiltX));
@@ -222,7 +348,6 @@
       }
     }
 
-    // センサー・音声の初回起動処理（ボタン押下時）
     function enableSensor() {
       initAudio();
 
