@@ -102,17 +102,40 @@
 
     const lineLength = 220;
 
-    // 3本分のデータを配列で管理（初期位置を少しずつずらしています）
+    // 個体差をつけるため、各芯に摩擦係数(friction)や感度(sensitivityMult)をランダム気味に設定
     const lines = [
-      { el: document.getElementById('line1'), posX: window.innerWidth / 2, posY: window.innerHeight / 2 - 30, vx: 0, vy: 0, angle: 0, angularVel: 0 },
-      { el: document.getElementById('line2'), posX: window.innerWidth / 2, posY: window.innerHeight / 2,      vx: 0, vy: 0, angle: 0, angularVel: 0 },
-      { el: document.getElementById('line3'), posX: window.innerWidth / 2, posY: window.innerHeight / 2 + 30, vx: 0, vy: 0, angle: 0, angularVel: 0 }
+      {
+        el: document.getElementById('line1'),
+        posX: window.innerWidth / 2 - 20,
+        posY: window.innerHeight / 2 - 40,
+        vx: 0, vy: 0,
+        angle: -0.1, angularVel: 0,
+        friction: 0.915,
+        sensitivityMult: 0.95
+      },
+      {
+        el: document.getElementById('line2'),
+        posX: window.innerWidth / 2 + 10,
+        posY: window.innerHeight / 2,
+        vx: 0, vy: 0,
+        angle: 0.05, angularVel: 0,
+        friction: 0.925,
+        sensitivityMult: 1.05
+      },
+      {
+        el: document.getElementById('line3'),
+        posX: window.innerWidth / 2 - 5,
+        posY: window.innerHeight / 2 + 45,
+        vx: 0, vy: 0,
+        angle: 0.2, angularVel: 0,
+        friction: 0.91,
+        sensitivityMult: 1.0
+      }
     ];
 
     let tiltX = 0;
     let tiltY = 0;
 
-    const friction = 0.92;
     const baseSensitivity = 0.001;
     const exponent = 2.2;
     const staticThreshold = 1.5;
@@ -150,15 +173,20 @@
       const screenW = viewport.clientWidth;
       const screenH = viewport.clientHeight;
 
-      const forceX = calculateExponentialForce(tiltX);
-      const forceY = calculateExponentialForce(tiltY);
+      const baseForceX = calculateExponentialForce(tiltX);
+      const baseForceY = calculateExponentialForce(tiltY);
 
-      // 3本それぞれに対して同じ物理計算を適用
       lines.forEach(item => {
+        // 各芯ごとの感度倍率を掛け合わせて力を計算
+        const forceX = baseForceX * item.sensitivityMult;
+        const forceY = baseForceY * item.sensitivityMult;
+
         item.vx += forceX;
         item.vy += forceY;
-        item.vx *= friction;
-        item.vy *= friction;
+
+        // 各芯固有の摩擦係数を適用
+        item.vx *= item.friction;
+        item.vy *= item.friction;
 
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.05) {
