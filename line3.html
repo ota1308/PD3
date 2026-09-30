@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（瞬間加速・影密着版）</title>
+  <title>リアルに転がるシャー芯（瞬間加速・影密着・触覚追加版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -105,7 +105,7 @@
 
     const lineLength = 320;
 
-    // 各芯の物理パラメーター
+    // 各芯の物理パラメーター（hasVibrated: 触覚トリガー管理を追加）
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -114,7 +114,8 @@
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
         friction: 0.92,
-        sensitivityMult: 0.95
+        sensitivityMult: 0.95,
+        hasVibrated: false
       },
       {
         el: document.getElementById('line2'),
@@ -123,7 +124,8 @@
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
         friction: 0.93,
-        sensitivityMult: 1.08
+        sensitivityMult: 1.08,
+        hasVibrated: false
       },
       {
         el: document.getElementById('line3'),
@@ -132,7 +134,8 @@
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
         friction: 0.915,
-        sensitivityMult: 1.0
+        sensitivityMult: 1.0,
+        hasVibrated: false
       }
     ];
 
@@ -143,7 +146,7 @@
     const exponent = 1.6;
     const staticThreshold = 0.3;
 
-    // --- Web Audio API（効果音用）---
+    // --- Web Audio API（着地効果音用）---
     let audioCtx = null;
     let isAudioUnlocked = false;
 
@@ -162,6 +165,41 @@
       src.start(0);
 
       isAudioUnlocked = true;
+    }
+
+    // 画面外（手元）着地時の極小高音クリック音
+    function playLandingSound() {
+      if (!audioCtx) return;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
+
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.012);
+    }
+
+    // --- 触覚＋音覚の同期発生関数 ---
+    function triggerLandingFeedback() {
+      // 1. 極短時間の微振動（12ms）
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch (e) {
+          // ブラウザの非互換対策
+        }
+      }
+      // 2. 音声同期
+      playLandingSound();
     }
 
     function calculateExponentialForce(tilt) {
@@ -184,38 +222,53 @@
       const minY = -margin;
       const maxY = screenH + margin;
 
-      // 重力加速が発動する端からの領域サイズ (px)
-      const dropZone = 120;
-      const dropGravity = 0.25; // 落下時の瞬間加速度
+      const dropZone = 120; // 重力加速領域
+      const dropGravity = 0.25; // 落下時の加速度
 
       lines.forEach(item => {
         let forceX = baseForceX * item.sensitivityMult;
         let forceY = baseForceY * item.sensitivityMult;
 
-        // --- 視覚的エフェクト1: 画面端に近づいた際の「瞬間加速（手元への落下重力）」 ---
-        let distToEdgeX = 1; // 1.0 = 中央寄り, 0.0 = 端に密着
+        // --- 画面端での引き込み加速と手元着地判定 ---
+        let distToEdgeX = 1;
         let distToEdgeY = 1;
+        let isAtEdge = false;
 
-        // X軸端の判定と引き込み重力
+        // X軸端判定
         if (item.posX < minX + dropZone) {
-          const ratio = (item.posX - minX) / dropZone; // 0〜1
+          const ratio = (item.posX - minX) / dropZone;
           distToEdgeX = Math.max(0, Math.min(1, ratio));
-          forceX -= dropGravity * (1 - distToEdgeX); // 画面外へ加速
+          forceX -= dropGravity * (1 - distToEdgeX);
+          if (distToEdgeX < 0.25) isAtEdge = true;
         } else if (item.posX > maxX - dropZone) {
           const ratio = (maxX - item.posX) / dropZone;
           distToEdgeX = Math.max(0, Math.min(1, ratio));
-          forceX += dropGravity * (1 - distToEdgeX); // 画面外へ加速
+          forceX += dropGravity * (1 - distToEdgeX);
+          if (distToEdgeX < 0.25) isAtEdge = true;
         }
 
-        // Y軸端の判定と引き込み重力
+        // Y軸端判定
         if (item.posY < minY + dropZone) {
           const ratio = (item.posY - minY) / dropZone;
           distToEdgeY = Math.max(0, Math.min(1, ratio));
           forceY -= dropGravity * (1 - distToEdgeY);
+          if (distToEdgeY < 0.25) isAtEdge = true;
         } else if (item.posY > maxY - dropZone) {
           const ratio = (maxY - item.posY) / dropZone;
           distToEdgeY = Math.max(0, Math.min(1, ratio));
           forceY += dropGravity * (1 - distToEdgeY);
+          if (distToEdgeY < 0.25) isAtEdge = true;
+        }
+
+        // --- 触覚（微振動）の判定と発火 ---
+        if (isAtEdge) {
+          if (!item.hasVibrated) {
+            triggerLandingFeedback();
+            item.hasVibrated = true;
+          }
+        } else {
+          // 画面中央付近に戻ったら触覚フラグをリセット
+          item.hasVibrated = false;
         }
 
         item.vx += forceX;
@@ -244,11 +297,8 @@
         if (item.posY < minY) { item.posY = minY; item.vy = 0; }
         if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
 
-        // --- 視覚的エフェクト2: 影の動的変化（端に近づくと影が沈んで手に密着）---
-        const edgeFactor = Math.min(distToEdgeX, distToEdgeY); // 最も近い端の割合 (0.0=端, 1.0=中央)
-        
-        // 中央: 影が離れてぼやける (offsetY: 3px, blur: 6px, alpha: 0.3)
-        // 端部: 影が密着してシャープになる (offsetY: 0.5px, blur: 1px, alpha: 0.1)
+        // --- 影の動的変化 ---
+        const edgeFactor = Math.min(distToEdgeX, distToEdgeY);
         const shadowY = (0.5 + 2.5 * edgeFactor).toFixed(1);
         const shadowBlur = (1 + 5 * edgeFactor).toFixed(1);
         const shadowAlpha = (0.1 + 0.2 * edgeFactor).toFixed(2);
