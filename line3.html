@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（拡大・初期速度版）</title>
+  <title>リアルに転がるシャー芯（端部バウンド実装版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,7 +35,7 @@
       z-index: 10;
     }
 
-    /* シャー芯（拡大サイズを維持: 長さ320px, 太さ3px） */
+    /* シャー芯（拡大サイズ: 長さ320px, 太さ3px） */
     .target-line {
       width: 320px;
       height: 3px;
@@ -104,7 +104,7 @@
 
     const lineLength = 320;
 
-    // 各芯の物理パラメーター（一番最初の設定に戻しました）
+    // 各芯の物理パラメーター
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -138,12 +138,11 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // 一番最初の感度設定
     const baseSensitivity = 0.0025;
     const exponent = 1.6;
     const staticThreshold = 0.3;
 
-    // --- Web Audio API（効果音用）---
+    // --- Web Audio API（着地効果音用）---
     let audioCtx = null;
     let isAudioUnlocked = false;
 
@@ -162,6 +161,28 @@
       src.start(0);
 
       isAudioUnlocked = true;
+    }
+
+    // 端に当たった瞬間の微小着地音
+    function playImpactSound(intensity) {
+      if (!audioCtx || intensity < 0.2) return;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.012);
+
+      const vol = Math.min(0.2, intensity * 0.08);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.012);
     }
 
     function calculateExponentialForce(tilt) {
@@ -202,16 +223,57 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
+        // --- 境界線判定と微小バウンド（反発係数処理）---
         const margin = 160;
         const minX = -margin;
         const maxX = screenW + margin;
         const minY = -margin;
         const maxY = screenH + margin;
 
-        if (item.posX < minX) { item.posX = minX; item.vx = 0; }
-        if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
-        if (item.posY < minY) { item.posY = minY; item.vy = 0; }
-        if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
+        const restitution = -0.22; // 固い物体や手に当たったときの反発力（22%の跳ね返り）
+        const minImpactSpeed = 0.3; // 音や反発を起こす最小速度閾値
+
+        // X軸（左右境界）のバウンド
+        if (item.posX < minX) {
+          item.posX = minX;
+          if (Math.abs(item.vx) > minImpactSpeed) {
+            playImpactSound(Math.abs(item.vx));
+            item.vx *= restitution;
+            item.angularVel += (Math.random() - 0.5) * 0.05; // 衝撃による微小トルク
+          } else {
+            item.vx = 0;
+          }
+        } else if (item.posX > maxX) {
+          item.posX = maxX;
+          if (Math.abs(item.vx) > minImpactSpeed) {
+            playImpactSound(Math.abs(item.vx));
+            item.vx *= restitution;
+            item.angularVel += (Math.random() - 0.5) * 0.05;
+          } else {
+            item.vx = 0;
+          }
+        }
+
+        // Y軸（上下境界）のバウンド
+        if (item.posY < minY) {
+          item.posY = minY;
+          if (Math.abs(item.vy) > minImpactSpeed) {
+            playImpactSound(Math.abs(item.vy));
+            item.vy *= restitution;
+            item.angularVel += (Math.random() - 0.5) * 0.05;
+          } else {
+            item.vy = 0;
+          }
+        } else if (item.posY > maxY) {
+          item.posY = maxY;
+          if (Math.abs(item.vy) > minImpactSpeed) {
+            playImpactSound(Math.abs(item.vy));
+            item.vy *= restitution;
+            item.angularVel += (Math.random() - 0.5) * 0.05;
+          } else {
+            item.vy = 0;
+          }
+        }
 
         const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
