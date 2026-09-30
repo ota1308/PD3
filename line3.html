@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（端部バウンド実装版）</title>
+  <title>リアルに転がるシャー芯（瞬間加速・影密着版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -41,13 +41,14 @@
       height: 3px;
       background-color: #111111;
       border-radius: 1px;
-      box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.25);
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
-      will-change: transform;
+      will-change: transform, box-shadow;
+      /* 初期状態の影（転がり中） */
+      box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
     }
 
     /* センサー開始ボタン */
@@ -142,7 +143,7 @@
     const exponent = 1.6;
     const staticThreshold = 0.3;
 
-    // --- Web Audio API（着地効果音用）---
+    // --- Web Audio API（効果音用）---
     let audioCtx = null;
     let isAudioUnlocked = false;
 
@@ -163,28 +164,6 @@
       isAudioUnlocked = true;
     }
 
-    // 端に当たった瞬間の微小着地音
-    function playImpactSound(intensity) {
-      if (!audioCtx || intensity < 0.2) return;
-
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.012);
-
-      const vol = Math.min(0.2, intensity * 0.08);
-      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.012);
-    }
-
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
       if (absTilt <= staticThreshold) return 0;
@@ -199,9 +178,45 @@
       const baseForceX = calculateExponentialForce(tiltX);
       const baseForceY = calculateExponentialForce(tiltY);
 
+      const margin = 160;
+      const minX = -margin;
+      const maxX = screenW + margin;
+      const minY = -margin;
+      const maxY = screenH + margin;
+
+      // 重力加速が発動する端からの領域サイズ (px)
+      const dropZone = 120;
+      const dropGravity = 0.25; // 落下時の瞬間加速度
+
       lines.forEach(item => {
-        const forceX = baseForceX * item.sensitivityMult;
-        const forceY = baseForceY * item.sensitivityMult;
+        let forceX = baseForceX * item.sensitivityMult;
+        let forceY = baseForceY * item.sensitivityMult;
+
+        // --- 視覚的エフェクト1: 画面端に近づいた際の「瞬間加速（手元への落下重力）」 ---
+        let distToEdgeX = 1; // 1.0 = 中央寄り, 0.0 = 端に密着
+        let distToEdgeY = 1;
+
+        // X軸端の判定と引き込み重力
+        if (item.posX < minX + dropZone) {
+          const ratio = (item.posX - minX) / dropZone; // 0〜1
+          distToEdgeX = Math.max(0, Math.min(1, ratio));
+          forceX -= dropGravity * (1 - distToEdgeX); // 画面外へ加速
+        } else if (item.posX > maxX - dropZone) {
+          const ratio = (maxX - item.posX) / dropZone;
+          distToEdgeX = Math.max(0, Math.min(1, ratio));
+          forceX += dropGravity * (1 - distToEdgeX); // 画面外へ加速
+        }
+
+        // Y軸端の判定と引き込み重力
+        if (item.posY < minY + dropZone) {
+          const ratio = (item.posY - minY) / dropZone;
+          distToEdgeY = Math.max(0, Math.min(1, ratio));
+          forceY -= dropGravity * (1 - distToEdgeY);
+        } else if (item.posY > maxY - dropZone) {
+          const ratio = (maxY - item.posY) / dropZone;
+          distToEdgeY = Math.max(0, Math.min(1, ratio));
+          forceY += dropGravity * (1 - distToEdgeY);
+        }
 
         item.vx += forceX;
         item.vy += forceY;
@@ -223,57 +238,22 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
-        // --- 境界線判定と微小バウンド（反発係数処理）---
-        const margin = 160;
-        const minX = -margin;
-        const maxX = screenW + margin;
-        const minY = -margin;
-        const maxY = screenH + margin;
+        // 画面外リミッター
+        if (item.posX < minX) { item.posX = minX; item.vx = 0; }
+        if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
+        if (item.posY < minY) { item.posY = minY; item.vy = 0; }
+        if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
 
-        const restitution = -0.22; // 固い物体や手に当たったときの反発力（22%の跳ね返り）
-        const minImpactSpeed = 0.3; // 音や反発を起こす最小速度閾値
+        // --- 視覚的エフェクト2: 影の動的変化（端に近づくと影が沈んで手に密着）---
+        const edgeFactor = Math.min(distToEdgeX, distToEdgeY); // 最も近い端の割合 (0.0=端, 1.0=中央)
+        
+        // 中央: 影が離れてぼやける (offsetY: 3px, blur: 6px, alpha: 0.3)
+        // 端部: 影が密着してシャープになる (offsetY: 0.5px, blur: 1px, alpha: 0.1)
+        const shadowY = (0.5 + 2.5 * edgeFactor).toFixed(1);
+        const shadowBlur = (1 + 5 * edgeFactor).toFixed(1);
+        const shadowAlpha = (0.1 + 0.2 * edgeFactor).toFixed(2);
 
-        // X軸（左右境界）のバウンド
-        if (item.posX < minX) {
-          item.posX = minX;
-          if (Math.abs(item.vx) > minImpactSpeed) {
-            playImpactSound(Math.abs(item.vx));
-            item.vx *= restitution;
-            item.angularVel += (Math.random() - 0.5) * 0.05; // 衝撃による微小トルク
-          } else {
-            item.vx = 0;
-          }
-        } else if (item.posX > maxX) {
-          item.posX = maxX;
-          if (Math.abs(item.vx) > minImpactSpeed) {
-            playImpactSound(Math.abs(item.vx));
-            item.vx *= restitution;
-            item.angularVel += (Math.random() - 0.5) * 0.05;
-          } else {
-            item.vx = 0;
-          }
-        }
-
-        // Y軸（上下境界）のバウンド
-        if (item.posY < minY) {
-          item.posY = minY;
-          if (Math.abs(item.vy) > minImpactSpeed) {
-            playImpactSound(Math.abs(item.vy));
-            item.vy *= restitution;
-            item.angularVel += (Math.random() - 0.5) * 0.05;
-          } else {
-            item.vy = 0;
-          }
-        } else if (item.posY > maxY) {
-          item.posY = maxY;
-          if (Math.abs(item.vy) > minImpactSpeed) {
-            playImpactSound(Math.abs(item.vy));
-            item.vy *= restitution;
-            item.angularVel += (Math.random() - 0.5) * 0.05;
-          } else {
-            item.vy = 0;
-          }
-        }
+        item.el.style.boxShadow = `0px ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
 
         const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
