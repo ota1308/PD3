@@ -104,7 +104,7 @@
 
     const lineLength = 320;
 
-    // 初期のパラメータ群は元通りに完全復元
+    // 各芯ごとのバラつき（重さ・滑りやすさ・回転しやすさの個性）を明確化
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -112,8 +112,9 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.92,
-        sensitivityMult: 0.95,
+        friction: 0.91,             // 摩擦の個体差
+        sensitivityMult: 0.85,      // 感度（重さ）の差を広げる
+        angleFactor: 0.003,         // 回転応答性
         hasVibrated: false
       },
       {
@@ -122,8 +123,9 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.93,
-        sensitivityMult: 1.08,
+        friction: 0.935,
+        sensitivityMult: 1.18,      // 軽やかに走る芯
+        angleFactor: 0.0018,
         hasVibrated: false
       },
       {
@@ -132,8 +134,9 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.915,
-        sensitivityMult: 1.0,
+        friction: 0.92,
+        sensitivityMult: 0.98,
+        angleFactor: 0.0025,
         hasVibrated: false
       }
     ];
@@ -141,10 +144,9 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // --- リアルさを維持しつつスピードをアップさせる計算調整 ---
-    const baseSensitivity = 0.0055;  // 適正な重み付けでベース感度を引き上げ (元: 0.0025)
-    const exponent = 1.6;             // 傾けるほど指乗数で加速するカーブは維持
-    const staticThreshold = 0.15;     // 動き出しの遊び（静止摩擦感）を少し詰めて追従性を向上 (元: 0.3)
+    const baseSensitivity = 0.0055;
+    const exponent = 1.6;
+    const staticThreshold = 0.15;
 
     let audioCtx = null;
     let isAudioUnlocked = false;
@@ -268,12 +270,13 @@
         item.vx *= item.friction;
         item.vy *= item.friction;
 
+        // 転がり回転のトルク計算に各芯固有の係数を反映し、向きのバラつきを生む
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.02) {
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * 0.002;
+          item.angularVel += cross * item.angleFactor;
         }
 
         item.angularVel *= 0.72;
@@ -363,8 +366,8 @@
       const deltaY = currentY - lastMouseY;
 
       lines.forEach(item => {
-        item.vx += deltaX * 0.15;
-        item.vy += deltaY * 0.15;
+        item.vx += deltaX * 0.15 * item.sensitivityMult;
+        item.vy += deltaY * 0.15 * item.sensitivityMult;
       });
 
       lastMouseX = currentX;
