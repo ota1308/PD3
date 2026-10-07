@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（傾き方向修正版）</title>
+  <title>リアルに転がるシャー芯（独立支点旋回版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -104,7 +104,7 @@
 
     const lineLength = 320;
 
-    // 各芯ごとのバラつき（重さ・滑りやすさ・回転しやすさの個性）を明確化
+    // 支点の位置（pivotOffset）と旋回感度（torqueSensitivity）を各芯で全く異なる配置に指定
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -112,9 +112,10 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.91,             // 摩擦の個体差
-        sensitivityMult: 0.85,      // 感度（重さ）の差を広げる
-        angleFactor: 0.003,         // 回転応答性
+        friction: 0.91,
+        sensitivityMult: 0.85,
+        pivotOffset: 120,          // 右端寄りに支点（先端が引っかかって大きく振れる）
+        torqueSensitivity: 0.0045,  // 支点のひっかかり強さ：強
         hasVibrated: false
       },
       {
@@ -124,8 +125,9 @@
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
         friction: 0.935,
-        sensitivityMult: 1.18,      // 軽やかに走る芯
-        angleFactor: 0.0018,
+        sensitivityMult: 1.18,
+        pivotOffset: -100,         // 左端寄りに支点（お尻側軸で旋回）
+        torqueSensitivity: 0.0028,  // 支点のひっかかり強さ：中
         hasVibrated: false
       },
       {
@@ -136,7 +138,8 @@
         angle: 0.2, angularVel: 0,
         friction: 0.92,
         sensitivityMult: 0.98,
-        angleFactor: 0.0025,
+        pivotOffset: 25,           // やや中央寄りに支点（ほぼストレートに滑る）
+        torqueSensitivity: 0.0012,  // 支点のひっかかり強さ：弱
         hasVibrated: false
       }
     ];
@@ -270,16 +273,31 @@
         item.vx *= item.friction;
         item.vy *= item.friction;
 
-        // 転がり回転のトルク計算に各芯固有の係数を反映し、向きのバラつきを生む
+        // --- 独自支点（Pivot Point）による回転モーメントの計算 ---
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.02) {
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
-          const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * item.angleFactor;
+          
+          // 芯の長手方向（ベクトル）
+          const dirX = cos;
+          const dirY = sin;
+
+          // 移動ベクトルと芯の向きのクロス積（横すべり量）
+          const sideSlide = item.vx * dirY - item.vy * dirX;
+
+          // 支点位置のオフセットによるトルク計算
+          const torque = sideSlide * (item.pivotOffset / (lineLength / 2)) * item.torqueSensitivity;
+          item.angularVel += torque;
+
+          // 支点を中心とした位置の微小シフト（支点以外が振り回される挙動の再現）
+          const deltaAngle = item.angularVel;
+          const pivotDist = item.pivotOffset;
+          item.posX -= pivotDist * (Math.cos(item.angle + deltaAngle) - Math.cos(item.angle)) * 0.15;
+          item.posY -= pivotDist * (Math.sin(item.angle + deltaAngle) - Math.sin(item.angle)) * 0.15;
         }
 
-        item.angularVel *= 0.72;
+        item.angularVel *= 0.70; // 回転減衰
         item.angle += item.angularVel;
 
         item.posX += item.vx;
@@ -307,7 +325,6 @@
       requestAnimationFrame(animate);
     }
 
-    // --- 傾きセンサーの方向揃え修正 ---
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
@@ -345,7 +362,6 @@
       tiltY = Math.max(-45, Math.min(45, tiltY));
     }
 
-    // タッチ・ドラッグフォールバック
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -399,27 +415,3 @@
             }
           })
           .catch(() => {
-            showError('センサーの起動に失敗しました。');
-          });
-      } else if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        sensorBtn.style.display = 'none';
-      } else {
-        showError('傾きセンサー非対応の端末です。');
-      }
-    }
-
-    function showError(msg) {
-      errorMsg.textContent = msg;
-      errorMsg.style.display = 'block';
-      sensorBtn.style.display = 'none';
-      setTimeout(() => {
-        errorMsg.style.display = 'none';
-      }, 4000);
-    }
-
-    sensorBtn.addEventListener('click', enableSensor);
-    requestAnimationFrame(animate);
-  </script>
-</body>
-</html>
