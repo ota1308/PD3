@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（完全修復版）</title>
+  <title>リアルに転がるシャー芯（完全修復・安定版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -15,7 +15,7 @@
     }
 
     body {
-      background-color: #ffffff;
+      background-color: #f8f8f8;
       height: 100vh;
       width: 100vw;
       overflow: hidden;
@@ -31,21 +31,20 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      z-index: 10;
     }
 
     .target-line {
       width: 320px;
       height: 3px;
       background-color: #111111;
-      border-radius: 1px;
+      border-radius: 2px;
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: center center;
       backface-visibility: hidden;
-      will-change: transform, box-shadow;
-      box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
+      will-change: transform;
+      box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.25);
       pointer-events: none;
     }
 
@@ -65,7 +64,6 @@
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       outline: none;
-      -webkit-tap-highlight-color: transparent;
     }
 
     .error-msg {
@@ -88,7 +86,7 @@
 </head>
 <body>
 
-  <button class="sensor-btn" id="sensor-btn">タップして開始（傾き / タッチ操作）</button>
+  <button class="sensor-btn" id="sensor-btn">傾きセンサーを開始（スワイプでも動きます）</button>
   <div class="error-msg" id="error-msg"></div>
 
   <div class="viewport" id="viewport">
@@ -98,165 +96,264 @@
   </div>
 
   <script>
-    const viewport = document.getElementById('viewport');
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
-
     const lineLength = 320;
-    let isInitialized = false;
 
-    // 各芯の物理パラメータ（支点オフセット・重さ・抵抗）
+    // 各シャー芯の個体パラメータ（速度感度、摩擦抵抗、回転の特性）
     const lines = [
       {
         el: document.getElementById('line1'),
-        posX: 0, posY: 0,
+        x: 0, y: 0,
         vx: 0, vy: 0,
-        angle: -0.1, angularVel: 0,
-        friction: 0.91,
-        sensitivityMult: 0.85,
-        pivotOffset: 120,          // 右端寄りに支点
-        torqueSensitivity: 0.0045,
+        angle: -0.15, angularVel: 0,
+        friction: 0.92,
+        speedMult: 0.85,     // 重めの芯
+        rotFactor: 0.0035,   // 先端がひっかかって旋回しやすい
         hasVibrated: false
       },
       {
         el: document.getElementById('line2'),
-        posX: 0, posY: 0,
+        x: 0, y: 0,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.935,
-        sensitivityMult: 1.18,
-        pivotOffset: -100,         // 左端寄りに支点
-        torqueSensitivity: 0.0028,
+        friction: 0.94,
+        speedMult: 1.20,     // 軽やかに走る芯
+        rotFactor: -0.0025,  // 反対方向に不規則に回る
         hasVibrated: false
       },
       {
         el: document.getElementById('line3'),
-        posX: 0, posY: 0,
+        x: 0, y: 0,
         vx: 0, vy: 0,
-        angle: 0.2, angularVel: 0,
-        friction: 0.92,
-        sensitivityMult: 0.98,
-        pivotOffset: 25,           // 中央寄りに支点
-        torqueSensitivity: 0.0012,
+        angle: 0.20, angularVel: 0,
+        friction: 0.91,
+        speedMult: 0.95,     // 直進性が高めの芯
+        rotFactor: 0.0010,   // 回りにくい
         hasVibrated: false
       }
     ];
 
-    // 画面サイズ取得後に画面中央へ配置
-    function resetPositions() {
-      const screenW = window.innerWidth || document.documentElement.clientWidth || 360;
-      const screenH = window.innerHeight || document.documentElement.clientHeight || 640;
-      const centerX = screenW / 2;
-      const centerY = screenH / 2;
+    // 初期位置の設定（確実に画面中央へ配置）
+    function initPositions() {
+      const w = window.innerWidth || 360;
+      const h = window.innerHeight || 640;
+      
+      lines[0].x = w / 2; lines[0].y = h / 2 - 40;
+      lines[1].x = w / 2; lines[1].y = h / 2;
+      lines[2].x = w / 2; lines[2].y = h / 2 + 40;
 
-      lines[0].posX = centerX;
-      lines[0].posY = centerY - 45;
-
-      lines[1].posX = centerX;
-      lines[1].posY = centerY;
-
-      lines[2].posX = centerX;
-      lines[2].posY = centerY + 45;
-
-      isInitialized = true;
+      lines.forEach(item => {
+        item.vx = 0;
+        item.vy = 0;
+        item.angularVel = 0;
+      });
     }
 
     let tiltX = 0;
     let tiltY = 0;
 
-    const baseSensitivity = 0.0055;
-    const exponent = 1.6;
-    const staticThreshold = 0.15;
-
     let audioCtx = null;
-    let isAudioUnlocked = false;
-
     function initAudio() {
-      if (isAudioUnlocked) return;
+      if (audioCtx) return;
       try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          audioCtx = new AudioContextClass();
-          if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-          }
-          const buf = audioCtx.createBuffer(1, 1, 22050);
-          const src = audioCtx.createBufferSource();
-          src.buffer = buf;
-          src.connect(audioCtx.destination);
-          src.start(0);
-          isAudioUnlocked = true;
-        }
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioClass) audioCtx = new AudioClass();
       } catch (e) {}
     }
 
-    function playLandingSound() {
-      if (!audioCtx || audioCtx.state !== 'running') return;
+    function playSound() {
+      if (!audioCtx) return;
       try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
-
-        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
-
+        osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.015);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.015);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.012);
+        osc.stop(audioCtx.currentTime + 0.015);
       } catch (e) {}
     }
 
-    function triggerLandingFeedback() {
+    function triggerFeedback() {
       if ('vibrate' in navigator) {
-        try {
-          navigator.vibrate(12);
-        } catch (e) {}
+        try { navigator.vibrate(10); } catch (e) {}
       }
-      playLandingSound();
+      playSound();
     }
 
-    function calculateExponentialForce(tilt) {
-      const absTilt = Math.abs(tilt);
-      if (absTilt <= staticThreshold) return 0;
-      const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
-      return Math.sign(tilt) * force;
-    }
-
+    // アニメーションメインループ
     function animate() {
-      if (!isInitialized) {
-        resetPositions();
-      }
+      const screenW = window.innerWidth || 360;
+      const screenH = window.innerHeight || 640;
 
-      const screenW = window.innerWidth || document.documentElement.clientWidth;
-      const screenH = window.innerHeight || document.documentElement.clientHeight;
-
-      const baseForceX = calculateExponentialForce(tiltX);
-      const baseForceY = calculateExponentialForce(tiltY);
-
-      const margin = 160;
-      const minX = -margin;
-      const maxX = screenW + margin;
-      const minY = -margin;
-      const maxY = screenH + margin;
-
-      const dropZone = 120;
-      const dropGravity = 0.25;
+      const minX = -120;
+      const maxX = screenW + 120;
+      const minY = -120;
+      const maxY = screenH + 120;
 
       lines.forEach(item => {
-        let forceX = baseForceX * item.sensitivityMult;
-        let forceY = baseForceY * item.sensitivityMult;
+        // 傾きからの加速度適用
+        const fx = (tiltX * 0.004) * item.speedMult;
+        const fy = (tiltY * 0.004) * item.speedMult;
 
-        let distToEdgeX = 1;
-        let distToEdgeY = 1;
-        let isAtEdge = false;
+        item.vx += fx;
+        item.vy += fy;
 
-        if (item.posX < minX + dropZone) {
-          const ratio = (item.posX - minX) / dropZone;
-          distToEdgeX = Math.max(0, Math.min(1, ratio));
-          forceX -= dropGravity * (1 - distToEdgeX);
-          if (distToEdgeX < 0
+        // 摩擦減衰
+        item.vx *= item.friction;
+        item.vy *= item.friction;
+
+        // 旋回（個別のトルク計算）
+        const speed = Math.hypot(item.vx, item.vy);
+        if (speed > 0.05) {
+          // 移動ベクトルと姿勢角度によるクロス積で個別に旋回
+          const slide = item.vx * Math.sin(item.angle) - item.vy * Math.cos(item.angle);
+          item.angularVel += slide * item.rotFactor;
+        }
+
+        item.angularVel *= 0.75;
+        item.angle += item.angularVel;
+
+        // 位置の更新
+        item.x += item.vx;
+        item.y += item.vy;
+
+        // 画面端の判定と跳ね返りガード
+        if (item.x < minX) { item.x = minX; item.vx = 0; }
+        if (item.x > maxX) { item.x = maxX; item.vx = 0; }
+        if (item.y < minY) { item.y = minY; item.vy = 0; }
+        if (item.y > maxY) { item.y = maxY; item.vy = 0; }
+
+        // 端に達した際の効果音・振動
+        const isNearEdge = (item.x <= 10 || item.x >= screenW - 10 || item.y <= 10 || item.y >= screenH - 10);
+        if (isNearEdge) {
+          if (!item.hasVibrated && speed > 0.3) {
+            triggerFeedback();
+            item.hasVibrated = true;
+          }
+        } else {
+          item.hasVibrated = false;
+        }
+
+        // 画面描画（中心基準）
+        const drawX = Math.round(item.x - lineLength / 2);
+        const drawY = Math.round(item.y);
+        item.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${item.angle.toFixed(3)}rad)`;
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    // 傾きセンサーのハンドリング
+    function handleOrientation(e) {
+      if (e.gamma === null || e.beta === null) return;
+      let g = e.gamma;
+      let b = e.beta;
+
+      let orientationAngle = 0;
+      if (screen.orientation && screen.orientation.angle !== undefined) {
+        orientationAngle = screen.orientation.angle;
+      } else if (typeof window.orientation !== 'undefined') {
+        orientationAngle = window.orientation;
+      }
+
+      if (orientationAngle === 90) {
+        tiltX = b; tiltY = -g;
+      } else if (orientationAngle === -90 || orientationAngle === 270) {
+        tiltX = -b; tiltY = g;
+      } else if (orientationAngle === 180) {
+        tiltX = -g; tiltY = -b;
+      } else {
+        tiltX = g; tiltY = b;
+      }
+
+      tiltX = Math.max(-45, Math.min(45, tiltX));
+      tiltY = Math.max(-45, Math.min(45, tiltY));
+    }
+
+    // タッチ・ドラッグ操作（フォールバック）
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function onPointerDown(e) {
+      initAudio();
+      isDragging = true;
+      lastX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+      lastY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+      const currentY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+
+      const dx = currentX - lastX;
+      const dy = currentY - lastY;
+
+      lines.forEach(item => {
+        item.vx += dx * 0.12 * item.speedMult;
+        item.vy += dy * 0.12 * item.speedMult;
+      });
+
+      lastX = currentX;
+      lastY = currentY;
+    }
+
+    function onPointerUp() {
+      isDragging = false;
+    }
+
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    window.addEventListener('touchstart', onPointerDown, { passive: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+
+    // センサー有効化ボタン
+    sensorBtn.addEventListener('click', () => {
+      initAudio();
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(state => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+              sensorBtn.style.display = 'none';
+            } else {
+              showError('センサーが許可されませんでした。スワイプ操作でお楽しみください。');
+            }
+          })
+          .catch(() => {
+            showError('センサーの要求に失敗しました。スワイプ操作でお楽しみください。');
+          });
+      } else if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        sensorBtn.style.display = 'none';
+      } else {
+        showError('傾き非対応端末です。スワイプ操作でお楽しみください。');
+      }
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      sensorBtn.style.display = 'none';
+      setTimeout(() => { errorMsg.style.display = 'none'; }, 4000);
+    }
+
+    window.addEventListener('resize', initPositions);
+
+    // 初期化とアニメーション開始
+    initPositions();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
