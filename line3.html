@@ -105,7 +105,7 @@
 
     const lineLength = 320;
 
-    // 各芯の物理パラメーター
+    // 各芯の物理パラメーター（hasVibrated: 触覚トリガー管理を追加）
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -152,46 +152,43 @@
 
     function initAudio() {
       if (isAudioUnlocked) return;
-      try {
+      if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-        const buf = audioCtx.createBuffer(1, 1, 22050);
-        const src = audioCtx.createBufferSource();
-        src.buffer = buf;
-        src.connect(audioCtx.destination);
-        src.start(0);
-        isAudioUnlocked = true;
-      } catch (e) {
-        // Audio非対応環境対策
       }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+
+      isAudioUnlocked = true;
     }
 
     // 画面外（手元）着地時の極小高音クリック音
     function playLandingSound() {
       if (!audioCtx) return;
 
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
 
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
 
-        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
 
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
 
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.012);
-      } catch (e) {}
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.012);
     }
 
-    // --- 触覚＋音覚の同期発生関数 ---
+    // --- 触覚＋音覚の同期発生関数（振動のみ維持） ---
     function triggerLandingFeedback() {
       // 1. 極短時間の微振動（12ms）
       if ('vibrate' in navigator) {
@@ -240,4 +237,30 @@
         // X軸端判定
         if (item.posX < minX + dropZone) {
           const ratio = (item.posX - minX) / dropZone;
-          distToEdgeX = Math.max(0, Math
+          distToEdgeX = Math.max(0, Math.min(1, ratio));
+          forceX -= dropGravity * (1 - distToEdgeX);
+          if (distToEdgeX < 0.25) isAtEdge = true;
+        } else if (item.posX > maxX - dropZone) {
+          const ratio = (maxX - item.posX) / dropZone;
+          distToEdgeX = Math.max(0, Math.min(1, ratio));
+          forceX += dropGravity * (1 - distToEdgeX);
+          if (distToEdgeX < 0.25) isAtEdge = true;
+        }
+
+        // Y軸端判定
+        if (item.posY < minY + dropZone) {
+          const ratio = (item.posY - minY) / dropZone;
+          distToEdgeY = Math.max(0, Math.min(1, ratio));
+          forceY -= dropGravity * (1 - distToEdgeY);
+          if (distToEdgeY < 0.25) isAtEdge = true;
+        } else if (item.posY > maxY - dropZone) {
+          const ratio = (maxY - item.posY) / dropZone;
+          distToEdgeY = Math.max(0, Math.min(1, ratio));
+          forceY += dropGravity * (1 - distToEdgeY);
+          if (distToEdgeY < 0.25) isAtEdge = true;
+        }
+
+        // --- 触覚（微振動）の判定と発火 ---
+        if (isAtEdge) {
+          if (!item.hasVibrated) {
+            triggerLandingFeedback
