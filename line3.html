@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（高低差落下・完全修正版）</title>
+  <title>リアルに転がるシャー芯（瞬間加速・影密着・触覚追加版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -47,6 +47,7 @@
       transform-origin: center center;
       backface-visibility: hidden;
       will-change: transform, box-shadow;
+      /* 初期状態の影（転がり中） */
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
     }
 
@@ -104,7 +105,7 @@
 
     const lineLength = 320;
 
-    // 各芯の物理パラメーター（すべての変数を安全に初期化）
+    // 各芯の物理パラメーター
     const lines = [
       {
         el: document.getElementById('line1'),
@@ -114,9 +115,7 @@
         angle: -0.1, angularVel: 0,
         friction: 0.92,
         sensitivityMult: 0.95,
-        hasVibrated: false,
-        dropOffset: 0,
-        dropVelocity: 0
+        hasVibrated: false
       },
       {
         el: document.getElementById('line2'),
@@ -126,9 +125,7 @@
         angle: 0.05, angularVel: 0,
         friction: 0.93,
         sensitivityMult: 1.08,
-        hasVibrated: false,
-        dropOffset: 0,
-        dropVelocity: 0
+        hasVibrated: false
       },
       {
         el: document.getElementById('line3'),
@@ -138,9 +135,7 @@
         angle: 0.2, angularVel: 0,
         friction: 0.915,
         sensitivityMult: 1.0,
-        hasVibrated: false,
-        dropOffset: 0,
-        dropVelocity: 0
+        hasVibrated: false
       }
     ];
 
@@ -157,22 +152,23 @@
 
     function initAudio() {
       if (isAudioUnlocked) return;
-      if (!audioCtx) {
+      try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+        isAudioUnlocked = true;
+      } catch (e) {
+        // Audio非対応環境対策
       }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      const buf = audioCtx.createBuffer(1, 1, 22050);
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.connect(audioCtx.destination);
-      src.start(0);
-
-      isAudioUnlocked = true;
     }
 
-    // 高低差着地時の硬い小気味よいクリック音
+    // 画面外（手元）着地時の極小高音クリック音
     function playLandingSound() {
       if (!audioCtx) return;
 
@@ -181,29 +177,31 @@
         const gain = audioCtx.createGain();
 
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(1800, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.015);
+        osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
 
-        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.015);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
 
         osc.connect(gain);
         gain.connect(audioCtx.destination);
 
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.015);
-      } catch (e) {
-        // エラーハンドリング
-      }
+        osc.stop(audioCtx.currentTime + 0.012);
+      } catch (e) {}
     }
 
-    // 触覚＋音覚の同期発生
+    // --- 触覚＋音覚の同期発生関数 ---
     function triggerLandingFeedback() {
+      // 1. 極短時間の微振動（12ms）
       if ('vibrate' in navigator) {
         try {
-          navigator.vibrate(14);
-        } catch (e) {}
+          navigator.vibrate(12);
+        } catch (e) {
+          // ブラウザの非互換対策
+        }
       }
+      // 2. 音声同期
       playLandingSound();
     }
 
@@ -215,192 +213,31 @@
     }
 
     function animate() {
-      const screenW = viewport.clientWidth || window.innerWidth;
-      const screenH = viewport.clientHeight || window.innerHeight;
+      const screenW = viewport.clientWidth;
+      const screenH = viewport.clientHeight;
 
       const baseForceX = calculateExponentialForce(tiltX);
       const baseForceY = calculateExponentialForce(tiltY);
 
-      const margin = 120;
+      const margin = 160;
       const minX = -margin;
       const maxX = screenW + margin;
       const minY = -margin;
       const maxY = screenH + margin;
 
-      const dropZone = 100; // 落下判定を行う画面端領域(px)
+      const dropZone = 120; // 重力加速領域
+      const dropGravity = 0.25; // 落下時の加速度
 
       lines.forEach(item => {
         let forceX = baseForceX * item.sensitivityMult;
         let forceY = baseForceY * item.sensitivityMult;
 
-        // 4方向それぞれの画面端への進入度を算出（0.0 〜 1.0）
-        const edgeLeft   = Math.max(0, (dropZone - item.posX) / dropZone);
-        const edgeRight  = Math.max(0, (item.posX - (screenW - dropZone)) / dropZone);
-        const edgeTop    = Math.max(0, (dropZone - item.posY) / dropZone);
-        const edgeBottom = Math.max(0, (item.posY - (screenH - dropZone)) / dropZone);
+        // --- 画面端での引き込み加速と手元着地判定 ---
+        let distToEdgeX = 1;
+        let distToEdgeY = 1;
+        let isAtEdge = false;
 
-        const edgeProgress = Math.max(edgeLeft, edgeRight, edgeTop, edgeBottom);
-        const edgeFactor = Math.min(1, Math.max(0, edgeProgress));
-
-        // --- 画面端での引き込み加速 ---
-        if (item.posX < dropZone) forceX -= 0.18 * edgeLeft;
-        if (item.posX > screenW - dropZone) forceX += 0.18 * edgeRight;
-        if (item.posY < dropZone) forceY -= 0.18 * edgeTop;
-        if (item.posY > screenH - dropZone) forceY += 0.18 * edgeBottom;
-
-        item.vx += forceX;
-        item.vy += forceY;
-
-        item.vx *= item.friction;
-        item.vy *= item.friction;
-
-        // 回転物理
-        const speed = Math.hypot(item.vx, item.vy);
-        if (speed > 0.02) {
-          const cos = Math.cos(item.angle);
-          const sin = Math.sin(item.angle);
-          const cross = cos * item.vy - sin * item.vx;
-          item.angularVel += cross * 0.002;
-        }
-
-        item.angularVel *= 0.72;
-        item.angle += item.angularVel;
-
-        item.posX += item.vx;
-        item.posY += item.vy;
-
-        // 限界移動範囲制御
-        if (item.posX < minX) { item.posX = minX; item.vx = 0; }
-        if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
-        if (item.posY < minY) { item.posY = minY; item.vy = 0; }
-        if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
-
-        // --- 高低差（一段下に落ちる）計算 ---
-        const targetDropOffset = edgeFactor * 18; // 落ち込み深度(px)
-
-        if (edgeFactor > 0.5) {
-          item.dropVelocity = (item.dropVelocity || 0) + 1.8;
-          item.dropOffset = (item.dropOffset || 0) + item.dropVelocity;
-
-          if (item.dropOffset >= targetDropOffset) {
-            item.dropOffset = targetDropOffset;
-
-            // バウンド処理
-            if (Math.abs(item.dropVelocity) > 2.0) {
-              item.dropVelocity = -item.dropVelocity * 0.25;
-            } else {
-              item.dropVelocity = 0;
-            }
-
-            // 着地瞬間の音・振動発生
-            if (!item.hasVibrated) {
-              triggerLandingFeedback();
-              item.hasVibrated = true;
-            }
-          }
-        } else {
-          // 中央領域に戻ってきたら高さを戻す
-          item.dropVelocity = 0;
-          item.dropOffset = (item.dropOffset || 0) * 0.8;
-          item.hasVibrated = false;
-        }
-
-        // --- 見た目の処理（影・スケール） ---
-        const scale = 1 + edgeFactor * 0.05 - ((item.dropOffset || 0) > 10 ? 0.03 : 0);
-        
-        let shadowY, shadowBlur, shadowAlpha;
-        if ((item.dropOffset || 0) >= targetDropOffset && edgeFactor > 0.5) {
-          // 着地時（影がピタッと密着）
-          shadowY = 1.0;
-          shadowBlur = 1.5;
-          shadowAlpha = 0.45;
-        } else {
-          // 落下中（影が大きくぼやけて離れる）
-          shadowY = 2 + edgeFactor * 6;
-          shadowBlur = 4 + edgeFactor * 8;
-          shadowAlpha = 0.25 - edgeFactor * 0.1;
-        }
-
-        item.el.style.boxShadow = `0px ${shadowY.toFixed(1)}px ${shadowBlur.toFixed(1)}px rgba(0, 0, 0, ${Math.max(0, shadowAlpha).toFixed(2)})`;
-
-        const drawX = Math.round(item.posX - lineLength / 2);
-        const drawY = Math.round(item.posY + (item.dropOffset || 0));
-        const drawAngle = Math.round(item.angle * 100) / 100;
-
-        item.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad) scale(${scale.toFixed(3)})`;
-      });
-
-      requestAnimationFrame(animate);
-    }
-
-    // --- 傾きセンサー補正 ---
-    function handleOrientation(event) {
-      if (event.gamma !== null && event.beta !== null) {
-        let g = event.gamma;
-        let b = event.beta;
-
-        const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
-
-        switch (orientation) {
-          case 90:
-            tiltX = b;
-            tiltY = -g;
-            break;
-          case -90:
-            tiltX = -b;
-            tiltY = g;
-            break;
-          case 180:
-            tiltX = -g;
-            tiltY = -b;
-            break;
-          default:
-            tiltX = g;
-            tiltY = b;
-            break;
-        }
-
-        tiltX = Math.max(-45, Math.min(45, tiltX));
-        tiltY = Math.max(-45, Math.min(45, tiltY));
-      }
-    }
-
-    // センサー・音声の初回起動処理
-    function enableSensor() {
-      initAudio();
-
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        showError('エラー: 傾きセンサーには HTTPS 接続が必要です。');
-        return;
-      }
-
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(permissionState => {
-            if (permissionState === 'granted') {
-              window.addEventListener('deviceorientation', handleOrientation, true);
-              sensorBtn.style.display = 'none';
-            } else {
-              showError('センサーへのアクセスが拒否されました。');
-            }
-          })
-          .catch(() => showError('センサー起動エラーが発生しました。'));
-      } else if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        sensorBtn.style.display = 'none';
-      } else {
-        showError('お使いの端末は傾きセンサーに対応していません。');
-      }
-    }
-
-    function showError(msg) {
-      errorMsg.textContent = msg;
-      errorMsg.style.display = 'block';
-      sensorBtn.style.display = 'none';
-    }
-
-    sensorBtn.addEventListener('click', enableSensor);
-    requestAnimationFrame(animate);
-  </script>
-</body>
-</html>
+        // X軸端判定
+        if (item.posX < minX + dropZone) {
+          const ratio = (item.posX - minX) / dropZone;
+          distToEdgeX = Math.max(0, Math
