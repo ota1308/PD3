@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（動作修正版）</title>
+  <title>リアルに転がるシャー芯（完全修復版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -46,7 +46,7 @@
       backface-visibility: hidden;
       will-change: transform, box-shadow;
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
-      cursor: grab;
+      pointer-events: none;
     }
 
     .sensor-btn {
@@ -103,14 +103,13 @@
     const errorMsg = document.getElementById('error-msg');
 
     const lineLength = 320;
-    const initialCenterX = window.innerWidth / 2;
-    const initialCenterY = window.innerHeight / 2;
+    let isInitialized = false;
 
+    // 各芯の物理パラメータ（支点オフセット・重さ・抵抗）
     const lines = [
       {
         el: document.getElementById('line1'),
-        posX: initialCenterX - 20,
-        posY: initialCenterY - 50,
+        posX: 0, posY: 0,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
         friction: 0.91,
@@ -121,8 +120,7 @@
       },
       {
         el: document.getElementById('line2'),
-        posX: initialCenterX + 10,
-        posY: initialCenterY,
+        posX: 0, posY: 0,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
         friction: 0.935,
@@ -133,8 +131,7 @@
       },
       {
         el: document.getElementById('line3'),
-        posX: initialCenterX - 5,
-        posY: initialCenterY + 55,
+        posX: 0, posY: 0,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
         friction: 0.92,
@@ -144,6 +141,25 @@
         hasVibrated: false
       }
     ];
+
+    // 画面サイズ取得後に画面中央へ配置
+    function resetPositions() {
+      const screenW = window.innerWidth || document.documentElement.clientWidth || 360;
+      const screenH = window.innerHeight || document.documentElement.clientHeight || 640;
+      const centerX = screenW / 2;
+      const centerY = screenH / 2;
+
+      lines[0].posX = centerX;
+      lines[0].posY = centerY - 45;
+
+      lines[1].posX = centerX;
+      lines[1].posY = centerY;
+
+      lines[2].posX = centerX;
+      lines[2].posY = centerY + 45;
+
+      isInitialized = true;
+    }
 
     let tiltX = 0;
     let tiltY = 0;
@@ -158,4 +174,89 @@
     function initAudio() {
       if (isAudioUnlocked) return;
       try {
-        const AudioContextClass = window.AudioContext
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          const buf = audioCtx.createBuffer(1, 1, 22050);
+          const src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          src.connect(audioCtx.destination);
+          src.start(0);
+          isAudioUnlocked = true;
+        }
+      } catch (e) {}
+    }
+
+    function playLandingSound() {
+      if (!audioCtx || audioCtx.state !== 'running') return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
+
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.012);
+      } catch (e) {}
+    }
+
+    function triggerLandingFeedback() {
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch (e) {}
+      }
+      playLandingSound();
+    }
+
+    function calculateExponentialForce(tilt) {
+      const absTilt = Math.abs(tilt);
+      if (absTilt <= staticThreshold) return 0;
+      const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
+      return Math.sign(tilt) * force;
+    }
+
+    function animate() {
+      if (!isInitialized) {
+        resetPositions();
+      }
+
+      const screenW = window.innerWidth || document.documentElement.clientWidth;
+      const screenH = window.innerHeight || document.documentElement.clientHeight;
+
+      const baseForceX = calculateExponentialForce(tiltX);
+      const baseForceY = calculateExponentialForce(tiltY);
+
+      const margin = 160;
+      const minX = -margin;
+      const maxX = screenW + margin;
+      const minY = -margin;
+      const maxY = screenH + margin;
+
+      const dropZone = 120;
+      const dropGravity = 0.25;
+
+      lines.forEach(item => {
+        let forceX = baseForceX * item.sensitivityMult;
+        let forceY = baseForceY * item.sensitivityMult;
+
+        let distToEdgeX = 1;
+        let distToEdgeY = 1;
+        let isAtEdge = false;
+
+        if (item.posX < minX + dropZone) {
+          const ratio = (item.posX - minX) / dropZone;
+          distToEdgeX = Math.max(0, Math.min(1, ratio));
+          forceX -= dropGravity * (1 - distToEdgeX);
+          if (distToEdgeX < 0
