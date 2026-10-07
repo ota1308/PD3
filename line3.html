@@ -111,7 +111,7 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.98, // 摩擦を少なく修正（元: 0.92）
+        friction: 0.92, // 元の摩擦に復元
         sensitivityMult: 0.95,
         hasVibrated: false
       },
@@ -121,7 +121,7 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.985, // 摩擦を少なく修正（元: 0.93）
+        friction: 0.93, // 元の摩擦に復元
         sensitivityMult: 1.08,
         hasVibrated: false
       },
@@ -131,7 +131,7 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.975, // 摩擦を少なく修正（元: 0.915）
+        friction: 0.915, // 元の摩擦に復元
         sensitivityMult: 1.0,
         hasVibrated: false
       }
@@ -140,7 +140,8 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    const baseSensitivity = 0.0025;
+    // 傾き感度（移動速度のベース加速度）を向上 (元: 0.0025 -> 0.008)
+    const baseSensitivity = 0.008;
     const exponent = 1.6;
     const staticThreshold = 0.3;
 
