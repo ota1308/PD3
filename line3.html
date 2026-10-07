@@ -111,7 +111,7 @@
         posY: window.innerHeight / 2 - 50,
         vx: 0, vy: 0,
         angle: -0.1, angularVel: 0,
-        friction: 0.92,
+        friction: 0.98, // 摩擦を少なく修正（元: 0.92）
         sensitivityMult: 0.95,
         hasVibrated: false
       },
@@ -121,7 +121,7 @@
         posY: window.innerHeight / 2,
         vx: 0, vy: 0,
         angle: 0.05, angularVel: 0,
-        friction: 0.93,
+        friction: 0.985, // 摩擦を少なく修正（元: 0.93）
         sensitivityMult: 1.08,
         hasVibrated: false
       },
@@ -131,7 +131,7 @@
         posY: window.innerHeight / 2 + 55,
         vx: 0, vy: 0,
         angle: 0.2, angularVel: 0,
-        friction: 0.915,
+        friction: 0.975, // 摩擦を少なく修正（元: 0.915）
         sensitivityMult: 1.0,
         hasVibrated: false
       }
