@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（完全バラバラ・自然な回転版）</title>
+  <title>リアルに転がるシャー芯（向きが揃わない自然なバラバラ版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -111,18 +111,18 @@
 
     const lineLength = 320;
 
-    // 10本それぞれに全く異なる物理特性（摩擦・感度・回転のクセ・重心の偏り）を付与
+    // 各芯に独自の力ベクトル補正（forceMultX/Y）を持たせ、向きが綺麗に揃うのを防ぐ
     const lines = [
-      { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.1, angularVel: 0, friction: 0.91, sensitivityMult: 0.82, rotFactor: 0.007, bias: 0.4, hasVibrated: false },
-      { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.7, angularVel: 0, friction: 0.94, sensitivityMult: 1.15, rotFactor: -0.006, bias: -0.5, hasVibrated: false },
-      { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.2, angularVel: 0, friction: 0.925, sensitivityMult: 0.95, rotFactor: 0.009, bias: 0.2, hasVibrated: false },
-      { el: document.getElementById('line4'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -1.5, angularVel: 0, friction: 0.935, sensitivityMult: 1.05, rotFactor: -0.008, bias: -0.1, hasVibrated: false },
-      { el: document.getElementById('line5'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.4, angularVel: 0, friction: 0.915, sensitivityMult: 0.88, rotFactor: 0.005, bias: 0.6, hasVibrated: false },
-      { el: document.getElementById('line6'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.9, angularVel: 0, friction: 0.945, sensitivityMult: 1.22, rotFactor: -0.004, bias: -0.3, hasVibrated: false },
-      { el: document.getElementById('line7'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 2.1, angularVel: 0, friction: 0.92, sensitivityMult: 0.91, rotFactor: 0.006, bias: -0.4, hasVibrated: false },
-      { el: document.getElementById('line8'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.3, angularVel: 0, friction: 0.93, sensitivityMult: 1.0, rotFactor: -0.007, bias: 0.5, hasVibrated: false },
-      { el: document.getElementById('line9'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.8, angularVel: 0, friction: 0.938, sensitivityMult: 0.85, rotFactor: 0.008, bias: -0.2, hasVibrated: false },
-      { el: document.getElementById('line10'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -2.0, angularVel: 0, friction: 0.922, sensitivityMult: 1.1, rotFactor: -0.005, bias: 0.1, hasVibrated: false }
+      { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.1, angularVel: 0, friction: 0.92, sensitivityMult: 0.85, forceMultX: 0.95, forceMultY: 1.05, rotFactor: 0.008, hasVibrated: false },
+      { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.7, angularVel: 0, friction: 0.935, sensitivityMult: 1.1, forceMultX: 1.08, forceMultY: 0.92, rotFactor: -0.007, hasVibrated: false },
+      { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.2, angularVel: 0, friction: 0.915, sensitivityMult: 0.92, forceMultX: 0.90, forceMultY: 1.12, rotFactor: 0.010, hasVibrated: false },
+      { el: document.getElementById('line4'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -1.5, angularVel: 0, friction: 0.93, sensitivityMult: 1.02, forceMultX: 1.04, forceMultY: 0.96, rotFactor: -0.009, hasVibrated: false },
+      { el: document.getElementById('line5'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.4, angularVel: 0, friction: 0.925, sensitivityMult: 0.88, forceMultX: 0.98, forceMultY: 1.02, rotFactor: 0.006, hasVibrated: false },
+      { el: document.getElementById('line6'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.9, angularVel: 0, friction: 0.94, sensitivityMult: 1.15, forceMultX: 1.10, forceMultY: 0.90, rotFactor: -0.005, hasVibrated: false },
+      { el: document.getElementById('line7'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 2.1, angularVel: 0, friction: 0.92, sensitivityMult: 0.95, forceMultX: 0.93, forceMultY: 1.07, rotFactor: 0.007, hasVibrated: false },
+      { el: document.getElementById('line8'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.3, angularVel: 0, friction: 0.932, sensitivityMult: 0.98, forceMultX: 1.02, forceMultY: 0.98, rotFactor: -0.008, hasVibrated: false },
+      { el: document.getElementById('line9'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.8, angularVel: 0, friction: 0.928, sensitivityMult: 0.82, forceMultX: 0.96, forceMultY: 1.04, rotFactor: 0.009, hasVibrated: false },
+      { el: document.getElementById('line10'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -2.0, angularVel: 0, friction: 0.922, sensitivityMult: 1.08, forceMultX: 1.05, forceMultY: 0.95, rotFactor: -0.006, hasVibrated: false }
     ];
 
     // 初期配置を画面全体にバラバラにランダム配置
@@ -130,18 +130,16 @@
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
 
-      // 画面の安全マージン内へ完全に分散させる
       const marginX = screenW * 0.2;
       const marginY = screenH * 0.2;
 
       lines.forEach((item, index) => {
-        // 重ならないようグリッド風の揺らぎをベースにしつつランダムに配置
         const gx = (index % 3) / 2;
         const gy = Math.floor(index / 3) / 3;
         item.posX = marginX + gx * (screenW - marginX * 2) + (Math.random() - 0.5) * 80;
         item.posY = marginY + gy * (screenH - marginY * 2) + (Math.random() - 0.5) * 80;
-        item.vx = (Math.random() - 0.5) * 0.5;
-        item.vy = (Math.random() - 0.5) * 0.5;
+        item.vx = (Math.random() - 0.5) * 0.4;
+        item.vy = (Math.random() - 0.5) * 0.4;
       });
     }
 
@@ -226,9 +224,9 @@
       const dropGravity = 0.25;
 
       lines.forEach(item => {
-        // 各芯の感度特性に応じた力の適用
-        let forceX = baseForceX * item.sensitivityMult;
-        let forceY = baseForceY * item.sensitivityMult;
+        // 各芯ごとに少し異なる力のかかり方をさせて、一斉に同じ方向へ揃わないようにする
+        let forceX = baseForceX * item.sensitivityMult * item.forceMultX;
+        let forceY = baseForceY * item.sensitivityMult * item.forceMultY;
 
         let distToEdgeX = 1;
         let distToEdgeY = 1;
@@ -273,22 +271,20 @@
         item.vx *= item.friction;
         item.vy *= item.friction;
 
-        // --- よりリアルで自然な回転・転がり挙動 ---
+        // --- 自然な個別回転（向きが揃わないように独立してトルクを発生） ---
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.01) {
           const cos = Math.cos(item.angle);
           const sin = Math.sin(item.angle);
           
-          // 進行方向に対する滑り（横方向のずれ）を抽出
+          // 進行方向に対する滑り成分をもとに回転力を計算
           const slide = item.vx * sin - item.vy * cos;
-          
-          // 速度と重心の偏り（bias）を掛け合わせてトルク（回転変化）を算出
-          const torque = (slide * item.rotFactor) + (speed * item.bias * 0.001);
+          const torque = slide * item.rotFactor + (Math.random() - 0.5) * 0.001;
           item.angularVel += torque;
         }
 
-        // 慣性と回転の減衰
-        item.angularVel *= 0.82;
+        // 回転の慣性を高めにして、それぞれが勝手な方向を向いて回転・停止するようにする
+        item.angularVel *= 0.88;
         item.angle += item.angularVel;
 
         item.posX += item.vx;
@@ -372,12 +368,11 @@
       const deltaX = currentX - lastMouseX;
       const deltaY = currentY - lastMouseY;
 
-      // スワイプ時にそれぞれが個別に不規則な勢いを受けるようにする
       lines.forEach((item, index) => {
         const factor = item.sensitivityMult * (0.8 + (index % 3) * 0.2);
         item.vx += deltaX * 0.2 * factor;
         item.vy += deltaY * 0.2 * factor;
-        item.angularVel += (Math.random() - 0.5) * 0.025 * ((index % 2 === 0) ? 1 : -1);
+        item.angularVel += (Math.random() - 0.5) * 0.035 * ((index % 2 === 0) ? 1 : -1);
       });
 
       lastMouseX = currentX;
