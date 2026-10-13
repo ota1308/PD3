@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（個体差バリエーション版）</title>
+  <title>リアルに転がるシャー芯（3本・中央まとまり版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -104,56 +104,30 @@
 
     const lineLength = 320;
 
-    // 各芯の個性を明確に差別化（重心オフセット・抵抗・加速感度・回転の向き）
     const lines = [
-      {
-        el: document.getElementById('line1'),
-        posX: 0, posY: 0,
-        vx: 0, vy: 0,
-        angle: -0.1, angularVel: 0,
-        friction: 0.92,
-        sensitivityMult: 0.85,    // 重ための芯
-        rotFactor: 0.007,         // 右側に支点があり急旋回しやすい
-        pivotOffset: 80,
-        hasVibrated: false
-      },
-      {
-        el: document.getElementById('line2'),
-        posX: 0, posY: 0,
-        vx: 0, vy: 0,
-        angle: 0.05, angularVel: 0,
-        friction: 0.95,
-        sensitivityMult: 1.35,    // 軽快に転がる芯
-        rotFactor: -0.005,        // 左側に支点があり逆向きに回る
-        pivotOffset: -70,
-        hasVibrated: false
-      },
-      {
-        el: document.getElementById('line3'),
-        posX: 0, posY: 0,
-        vx: 0, vy: 0,
-        angle: 0.2, angularVel: 0,
-        friction: 0.93,
-        sensitivityMult: 1.05,    // 標準的な芯
-        rotFactor: 0.002,         // まっすぐ滑りやすい
-        pivotOffset: 10,
-        hasVibrated: false
-      }
+      { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasVibrated: false },
+      { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasVibrated: false },
+      { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.45, angularVel: 0.002, friction: 0.92, sensitivityMult: 0.95, driftX:  0.05, driftY:  0.07, hasVibrated: false }
     ];
 
-    // 初期配置を正確に中央へセット
+    // 初期配置を画面中央にコンパクトにまとめる
     function initPositions() {
-      const screenW = window.innerWidth || 360;
-      const screenH = window.innerHeight || 640;
-      
-      lines[0].posX = screenW / 2 - 15;
-      lines[0].posY = screenH / 2 - 45;
+      const screenW = viewport.clientWidth || window.innerWidth;
+      const screenH = viewport.clientHeight || window.innerHeight;
 
-      lines[1].posX = screenW / 2 + 10;
-      lines[1].posY = screenH / 2;
+      const centerX = screenW / 2;
+      const centerY = screenH / 2;
 
-      lines[2].posX = screenW / 2 - 5;
-      lines[2].posY = screenH / 2 + 45;
+      lines.forEach((item, index) => {
+        const angleOffset = index * 1.2;
+        const radius = (index * 6) + (Math.random() - 0.5) * 10;
+        
+        item.posX = centerX + Math.cos(angleOffset) * radius - 20;
+        item.posY = centerY + Math.sin(angleOffset) * radius + (index - 1) * 12;
+        
+        item.vx = (Math.random() - 0.5) * 0.2;
+        item.vy = (Math.random() - 0.5) * 0.2;
+      });
     }
 
     let tiltX = 0;
@@ -161,7 +135,7 @@
 
     const baseSensitivity = 0.0055;
     const exponent = 1.6;
-    const staticThreshold = 0.15;
+    const staticThreshold = 0.18;
 
     let audioCtx = null;
     let isAudioUnlocked = false;
@@ -237,8 +211,8 @@
       const dropGravity = 0.25;
 
       lines.forEach(item => {
-        let forceX = baseForceX * item.sensitivityMult;
-        let forceY = baseForceY * item.sensitivityMult;
+        let forceX = (baseForceX + item.driftX * Math.abs(baseForceX)) * item.sensitivityMult;
+        let forceY = (baseForceY + item.driftY * Math.abs(baseForceY)) * item.sensitivityMult;
 
         let distToEdgeX = 1;
         let distToEdgeY = 1;
@@ -283,20 +257,13 @@
         item.vx *= item.friction;
         item.vy *= item.friction;
 
-        // --- 個性豊かな回転・バラつき処理 ---
         const speed = Math.hypot(item.vx, item.vy);
-        if (speed > 0.02) {
-          const cos = Math.cos(item.angle);
-          const sin = Math.sin(item.angle);
-          
-          // 進行方向に対する横すべり成分を抽出
-          const slide = item.vx * sin - item.vy * cos;
-          
-          // 個別のトルク（回転力）を加算してバラバラに旋回させる
-          item.angularVel += slide * item.rotFactor;
+        if (speed > 0.01) {
+          const rotInertia = (Math.random() - 0.5) * 0.0012;
+          item.angularVel += (speed * 0.0003 * Math.sign(item.angularVel || 0.01)) + rotInertia;
         }
 
-        item.angularVel *= 0.75;
+        item.angularVel *= 0.94;
         item.angle += item.angularVel;
 
         item.posX += item.vx;
@@ -316,7 +283,7 @@
 
         const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
-        const drawAngle = Math.round(item.angle * 100) / 100;
+        const drawAngle = Math.round(item.angle * 1000) / 1000;
 
         item.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
       });
@@ -361,7 +328,6 @@
       tiltY = Math.max(-45, Math.min(45, tiltY));
     }
 
-    // タッチ・スワイプ操作
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -382,11 +348,10 @@
       const deltaY = currentY - lastMouseY;
 
       lines.forEach((item, index) => {
-        item.vx += deltaX * 0.25 * item.sensitivityMult;
-        item.vy += deltaY * 0.25 * item.sensitivityMult;
-        
-        // スワイプ時にそれぞれの角度へランダムな歪みを与えてばらけさせる
-        item.angularVel += (Math.random() - 0.5) * 0.015 * (index + 1);
+        const factor = item.sensitivityMult * (0.8 + (index % 3) * 0.2);
+        item.vx += deltaX * 0.2 * factor;
+        item.vy += deltaY * 0.2 * factor;
+        item.angularVel += (Math.random() - 0.5) * 0.04;
       });
 
       lastMouseX = currentX;
@@ -440,7 +405,6 @@
     sensorBtn.addEventListener('click', enableSensor);
     window.addEventListener('resize', initPositions);
 
-    // 開始
     initPositions();
     requestAnimationFrame(animate);
   </script>
