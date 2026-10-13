@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <title>リアルに転がるシャー芯（10本バージョン）</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    body {
+      background-color: #ffffff;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      position: fixed;
+      touch-action: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .target-line {
+      width: 320px;
+      height: 3px;
+      background-color: #111111;
+      border-radius: 1px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: center center;
+      backface-visibility: hidden;
+      will-change: transform, box-shadow;
+      box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
+      cursor: grab;
+    }
+
+    .sensor-btn {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      background: #111111;
+      color: #ffffff;
+      border: none;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 100;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .error-msg {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 16px;
+      background: rgba(220, 38, 38, 0.9);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      display: none;
+      text-align: center;
+      width: 80%;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="sensor-btn" id="sensor-btn">タップして開始（傾き / タッチ操作）</button>
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="viewport" id="viewport">
+    <div class="target-line" id="line1"></div>
+    <div class="target-line" id="line2"></div>
+    <div class="target-line" id="line3"></div>
+    <div class="target-line" id="line4"></div>
+    <div class="target-line" id="line5"></div>
+    <div class="target-line" id="line6"></div>
+    <div class="target-line" id="line7"></div>
+    <div class="target-line" id="line8"></div>
+    <div class="target-line" id="line9"></div>
+    <div class="target-line" id="line10"></div>
+  </div>
+
+  <script>
+    const viewport = document.getElementById('viewport');
+    const sensorBtn = document.getElementById('sensor-btn');
+    const errorMsg = document.getElementById('error-msg');
+
+    const lineLength = 320;
+
+    const lines = [
+      {
+        el: document.getElementById('line1'),
+        posX: window.innerWidth / 2 - 50,
+        posY: window.innerHeight / 2 - 90,
+        vx: 0, vy: 0,
+        angle: -0.1, angularVel: 0,
+        friction: 0.92,
+        sensitivityMult: 0.95,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line2'),
+        posX: window.innerWidth / 2 + 30,
+        posY: window.innerHeight / 2 - 60,
+        vx: 0, vy: 0,
+        angle: 0.05, angularVel: 0,
+        friction: 0.93,
+        sensitivityMult: 1.08,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line3'),
+        posX: window.innerWidth / 2 - 20,
+        posY: window.innerHeight / 2 - 20,
+        vx: 0, vy: 0,
+        angle: 0.2, angularVel: 0,
+        friction: 0.915,
+        sensitivityMult: 1.0,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line4'),
+        posX: window.innerWidth / 2 + 60,
+        posY: window.innerHeight / 2 + 10,
+        vx: 0, vy: 0,
+        angle: -0.35, angularVel: 0,
+        friction: 0.925,
+        sensitivityMult: 0.98,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line5'),
+        posX: window.innerWidth / 2 - 70,
+        posY: window.innerHeight / 2 + 30,
+        vx: 0, vy: 0,
+        angle: 0.45, angularVel: 0,
+        friction: 0.935,
+        sensitivityMult: 1.03,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line6'),
+        posX: window.innerWidth / 2 + 10,
+        posY: window.innerHeight / 2 + 70,
+        vx: 0, vy: 0,
+        angle: -0.6, angularVel: 0,
+        friction: 0.92,
+        sensitivityMult: 1.02,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line7'),
+        posX: window.innerWidth / 2 - 40,
+        posY: window.innerHeight / 2 + 100,
+        vx: 0, vy: 0,
+        angle: 0.15, angularVel: 0,
+        friction: 0.94,
+        sensitivityMult: 0.96,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line8'),
+        posX: window.innerWidth / 2 + 40,
+        posY: window.innerHeight / 2 - 110,
+        vx: 0, vy: 0,
+        angle: -0.25, angularVel: 0,
+        friction: 0.91,
+        sensitivityMult: 1.05,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line9'),
+        posX: window.innerWidth / 2 - 90,
+        posY: window.innerHeight / 2 - 40,
+        vx: 0, vy: 0,
+        angle: 0.8, angularVel: 0,
+        friction: 0.928,
+        sensitivityMult: 0.99,
+        hasVibrated: false
+      },
+      {
+        el: document.getElementById('line10'),
+        posX: window.innerWidth / 2 + 80,
+        posY: window.innerHeight / 2 - 10,
+        vx: 0, vy: 0,
+        angle: -0.5, angularVel: 0,
+        friction: 0.922,
+        sensitivityMult: 1.04,
+        hasVibrated: false
+      }
+    ];
+
+    let tiltX = 0;
+    let tiltY = 0;
+
+    const baseSensitivity = 0.008;
+    const exponent = 1.6;
+    const staticThreshold = 0.3;
+
+    let audioCtx = null;
+    let isAudioUnlocked = false;
+
+    function initAudio() {
+      if (isAudioUnlocked) return;
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          const buf = audioCtx.createBuffer(1, 1, 22050);
+          const src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          src.connect
