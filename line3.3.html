@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（完全ランダム方向・自然な物理挙動版）</title>
+  <title>リアルに転がるシャー芯（中央にまとまった配置版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -111,7 +111,6 @@
 
     const lineLength = 320;
 
-    // 10本のシャー芯に全く異なる個性のバイアス（偏り）を設定し、向きが揃うのを完全に阻止
     const lines = [
       { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasVibrated: false },
       { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasVibrated: false },
@@ -125,21 +124,25 @@
       { el: document.getElementById('line10'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -2.70, angularVel: -0.001, friction: 0.924, sensitivityMult: 1.08, driftX: -0.08, driftY: -0.06, hasVibrated: false }
     ];
 
-    // 初期配置を画面全体に完全にランダム分散
+    // 初期配置を画面中央にコンパクトにまとめる（少しずつずらして重なりすぎないようにする）
     function initPositions() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
 
-      const marginX = screenW * 0.2;
-      const marginY = screenH * 0.2;
+      const centerX = screenW / 2;
+      const centerY = screenH / 2;
 
       lines.forEach((item, index) => {
-        const gx = (index % 3) / 2;
-        const gy = Math.floor(index / 3) / 3;
-        item.posX = marginX + gx * (screenW - marginX * 2) + (Math.random() - 0.5) * 80;
-        item.posY = marginY + gy * (screenH - marginY * 2) + (Math.random() - 0.5) * 80;
-        item.vx = (Math.random() - 0.5) * 0.5;
-        item.vy = (Math.random() - 0.5) * 0.5;
+        // 中央を基準に、少しだけ放射状かつランダムに密集させる
+        const angleOffset = index * 0.6;
+        const radius = (index * 4) + (Math.random() - 0.5) * 15;
+        
+        item.posX = centerX + Math.cos(angleOffset) * radius - 20;
+        item.posY = centerY + Math.sin(angleOffset) * radius + (index - 5) * 6;
+        
+        // 始まった瞬間にふわっと自然に広がるためのごくわずかな初速
+        item.vx = (Math.random() - 0.5) * 0.2;
+        item.vy = (Math.random() - 0.5) * 0.2;
       });
     }
 
@@ -224,7 +227,6 @@
       const dropGravity = 0.25;
 
       lines.forEach(item => {
-        // 各芯独自のドリフトバイアスを加えることで、一斉に同じ方向へ揃うのを完全に防ぐ
         let forceX = (baseForceX + item.driftX * Math.abs(baseForceX)) * item.sensitivityMult;
         let forceY = (baseForceY + item.driftY * Math.abs(baseForceY)) * item.sensitivityMult;
 
@@ -271,15 +273,12 @@
         item.vx *= item.friction;
         item.vy *= item.friction;
 
-        // --- 向きを揃えず、完全に独立した物理回転（慣性と微小な不規則トルク） ---
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.01) {
-          // 速度に比例した自然な回転、および微小なゆらぎを与えて方向が固定されるのを防ぐ
           const rotInertia = (Math.random() - 0.5) * 0.0012;
           item.angularVel += (speed * 0.0003 * Math.sign(item.angularVel || 0.01)) + rotInertia;
         }
 
-        // 回転減衰を強めにし、それぞれの角度を保持しながら自然に転がるようにする
         item.angularVel *= 0.94;
         item.angle += item.angularVel;
 
