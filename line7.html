@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（カメラ背景・消音版）</title>
+  <title>リアルに転がるシャー芯（カメラ・デバッグ版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -15,7 +15,7 @@
     }
 
     body {
-      background-color: #000000; /* カメラが映るまでの背景色 */
+      background-color: #000000;
       height: 100vh;
       width: 100vw;
       overflow: hidden;
@@ -24,19 +24,17 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* カメラ映像を最背面に配置 */
     #camera-feed {
       position: absolute;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      object-fit: cover; /* 画面いっぱいに表示 */
-      z-index: 1; /* 最背面 */
-      pointer-events: none; /* カメラ映像自体への操作を無効化 */
+      object-fit: cover;
+      z-index: 1;
+      pointer-events: none;
     }
 
-    /* シャー芯を表示するビューポート */
     .viewport {
       position: absolute;
       top: 0;
@@ -44,9 +42,8 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      z-index: 10; /* カメラよりも前面に配置 */
-      background: transparent; /* 背景を透明にする */
-      /* このコンテナ自体はイベントを透過させ、シャー芯のみが操作を受け付けるようにする */
+      z-index: 10;
+      background: transparent;
       pointer-events: none; 
     }
 
@@ -62,7 +59,6 @@
       backface-visibility: hidden;
       will-change: transform, box-shadow;
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.4);
-      /* シャー芯自体への操作（grab）は有効にする */
       cursor: grab;
       pointer-events: auto;
     }
@@ -81,7 +77,7 @@
       border-radius: 24px;
       font-size: 14px;
       font-weight: bold;
-      z-index: 100; /* 最前面 */
+      z-index: 100;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       outline: none;
@@ -98,24 +94,22 @@
       color: #fff;
       border-radius: 8px;
       font-size: 12px;
-      z-index: 100;
+      z-index: 101; /* エラーを最前面に */
       display: none;
       text-align: center;
       width: 80%;
       pointer-events: none;
+      word-wrap: break-word; /* 長いエラーを表示 */
     }
   </style>
 </head>
 <body>
 
-  <!-- 最背面のカメラ映像 -->
   <video id="camera-feed" autoplay playsinline muted></video>
 
-  <!-- カメラとセンサーを開始するボタン -->
   <button class="sensor-btn" id="sensor-btn">タップしてカメラ・センサー開始</button>
   <div class="error-msg" id="error-msg"></div>
 
-  <!-- 前面のシャー芯レイヤー -->
   <div class="viewport" id="viewport">
     <div class="target-line" id="line1"></div>
     <div class="target-line" id="line2"></div>
@@ -123,253 +117,151 @@
   </div>
 
   <script>
+    // --- 物理挙動等は変更なし (中略) ---
     const viewport = document.getElementById('viewport');
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
     const cameraFeed = document.getElementById('camera-feed');
-
     const lineLength = 320;
-
-    // シャー芯の物理パラメータ
     const lines = [
       { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasFeedbackTriggered: false },
       { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasFeedbackTriggered: false },
       { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.45, angularVel: 0.002, friction: 0.92, sensitivityMult: 0.95, driftX:  0.05, driftY:  0.07, hasFeedbackTriggered: false }
     ];
-
-    // 初期配置
     function initPositions() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
-
       const centerX = screenW / 2;
       const centerY = screenH / 2;
-
       lines.forEach((item, index) => {
         const angleOffset = index * 1.2;
         const radius = (index * 6) + (Math.random() - 0.5) * 10;
-        
         item.posX = centerX + Math.cos(angleOffset) * radius - 20;
         item.posY = centerY + Math.sin(angleOffset) * radius + (index - 1) * 12;
-        
         item.vx = (Math.random() - 0.5) * 0.2;
         item.vy = (Math.random() - 0.5) * 0.2;
       });
     }
-
-    let tiltX = 0;
-    let tiltY = 0;
-
-    // 物理挙動定数
-    const baseSensitivity = 0.0055;
-    const exponent = 1.6;
-    const staticThreshold = 0.18;
-
-    // --- 音響関連の処理を削除 ---
-
-    // 物理力計算
+    let tiltX = 0; let tiltY = 0;
+    const baseSensitivity = 0.0055; const exponent = 1.6; const staticThreshold = 0.18;
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
       if (absTilt <= staticThreshold) return 0;
       const force = Math.pow(absTilt - staticThreshold, exponent) * baseSensitivity;
       return Math.sign(tilt) * force;
     }
-
-    // アニメーションループ
     function animate() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
-
       const baseForceX = calculateExponentialForce(tiltX);
       const baseForceY = calculateExponentialForce(tiltY);
-
-      const margin = 160;
-      const minX = -margin;
-      const maxX = screenW + margin;
-      const minY = -margin;
-      const maxY = screenH + margin;
-
-      const dropZone = 120;
-      const dropGravity = 0.25;
-
+      const margin = 160; const minX = -margin; const maxX = screenW + margin; const minY = -margin; const maxY = screenH + margin;
+      const dropZone = 120; const dropGravity = 0.25;
       lines.forEach(item => {
         let forceX = (baseForceX + item.driftX * Math.abs(baseForceX)) * item.sensitivityMult;
         let forceY = (baseForceY + item.driftY * Math.abs(baseForceY)) * item.sensitivityMult;
-
-        let distToEdgeX = 1;
-        let distToEdgeY = 1;
-        
-        // --- 衝突音・振動のフラグ処理を削除 ---
-
-        // 境界判定
+        let distToEdgeX = 1; let distToEdgeY = 1;
         if (item.posX < minX + dropZone) {
-          const ratio = (item.posX - minX) / dropZone;
-          distToEdgeX = Math.max(0, Math.min(1, ratio));
-          forceX -= dropGravity * (1 - distToEdgeX);
+          const ratio = (item.posX - minX) / dropZone; distToEdgeX = Math.max(0, Math.min(1, ratio)); forceX -= dropGravity * (1 - distToEdgeX);
         } else if (item.posX > maxX - dropZone) {
-          const ratio = (maxX - item.posX) / dropZone;
-          distToEdgeX = Math.max(0, Math.min(1, ratio));
-          forceX += dropGravity * (1 - distToEdgeX);
+          const ratio = (maxX - item.posX) / dropZone; distToEdgeX = Math.max(0, Math.min(1, ratio)); forceX += dropGravity * (1 - distToEdgeX);
         }
-
         if (item.posY < minY + dropZone) {
-          const ratio = (item.posY - minY) / dropZone;
-          distToEdgeY = Math.max(0, Math.min(1, ratio));
-          forceY -= dropGravity * (1 - distToEdgeY);
+          const ratio = (item.posY - minY) / dropZone; distToEdgeY = Math.max(0, Math.min(1, ratio)); forceY -= dropGravity * (1 - distToEdgeY);
         } else if (item.posY > maxY - dropZone) {
-          const ratio = (maxY - item.posY) / dropZone;
-          distToEdgeY = Math.max(0, Math.min(1, ratio));
-          forceY += dropGravity * (1 - distToEdgeY);
+          const ratio = (maxY - item.posY) / dropZone; distToEdgeY = Math.max(0, Math.min(1, ratio)); forceY += dropGravity * (1 - distToEdgeY);
         }
-
-        // 物理更新
-        item.vx += forceX;
-        item.vy += forceY;
-
-        item.vx *= item.friction;
-        item.vy *= item.friction;
-
+        item.vx += forceX; item.vy += forceY; item.vx *= item.friction; item.vy *= item.friction;
         const speed = Math.hypot(item.vx, item.vy);
         if (speed > 0.01) {
           const rotInertia = (Math.random() - 0.5) * 0.0012;
           item.angularVel += (speed * 0.0003 * Math.sign(item.angularVel || 0.01)) + rotInertia;
         }
-
-        item.angularVel *= 0.94;
-        item.angle += item.angularVel;
-
-        item.posX += item.vx;
-        item.posY += item.vy;
-
-        // 画面外リセット
-        if (item.posX < minX) { item.posX = minX; item.vx = 0; }
-        if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
-        if (item.posY < minY) { item.posY = minY; item.vy = 0; }
-        if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
-
-        // シャドウ更新
+        item.angularVel *= 0.94; item.angle += item.angularVel;
+        item.posX += item.vx; item.posY += item.vy;
+        if (item.posX < minX) { item.posX = minX; item.vx = 0; } if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
+        if (item.posY < minY) { item.posY = minY; item.vy = 0; } if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
         const edgeFactor = Math.min(distToEdgeX, distToEdgeY);
-        const shadowY = (1 + 3 * edgeFactor).toFixed(1);
-        const shadowBlur = (2 + 6 * edgeFactor).toFixed(1);
-        const shadowAlpha = (0.2 + 0.3 * edgeFactor).toFixed(2);
-
+        const shadowY = (1 + 3 * edgeFactor).toFixed(1); const shadowBlur = (2 + 6 * edgeFactor).toFixed(1); const shadowAlpha = (0.2 + 0.3 * edgeFactor).toFixed(2);
         item.el.style.boxShadow = `0px ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
-
-        // トランスフォルム適用
-        const drawX = Math.round(item.posX - lineLength / 2);
-        const drawY = Math.round(item.posY);
-        const drawAngle = Math.round(item.angle * 1000) / 1000;
-
+        const drawX = Math.round(item.posX - lineLength / 2); const drawY = Math.round(item.posY); const drawAngle = Math.round(item.angle * 1000) / 1000;
         item.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0px) rotate(${drawAngle}rad)`;
       });
-
       requestAnimationFrame(animate);
     }
-
-    // 傾き検知
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
-
-      let g = event.gamma;
-      let b = event.beta;
-
+      let g = event.gamma; let b = event.beta;
       let angle = 0;
-      if (screen.orientation && screen.orientation.angle !== undefined) {
-        angle = screen.orientation.angle;
-      } else if (typeof window.orientation !== 'undefined') {
-        angle = window.orientation;
-      }
-
+      if (screen.orientation && screen.orientation.angle !== undefined) { angle = screen.orientation.angle; } else if (typeof window.orientation !== 'undefined') { angle = window.orientation; }
       switch (angle) {
-        case 90:
-          tiltX = b;
-          tiltY = -g;
-          break;
-        case -90:
-        case 270:
-          tiltX = -b;
-          tiltY = g;
-          break;
-        case 180:
-          tiltX = -g;
-          tiltY = -b;
-          break;
-        default:
-          tiltX = g;
-          tiltY = b;
-          break;
+        case 90: tiltX = b; tiltY = -g; break;
+        case -90: case 270: tiltX = -b; tiltY = g; break;
+        case 180: tiltX = -g; tiltY = -b; break;
+        default: tiltX = g; tiltY = b; break;
       }
-
-      tiltX = Math.max(-45, Math.min(45, tiltX));
-      tiltY = Math.max(-45, Math.min(45, tiltY));
+      tiltX = Math.max(-45, Math.min(45, tiltX)); tiltY = Math.max(-45, Math.min(45, tiltY));
     }
-
-    // タッチ・ドラッグ操作
-    let isDragging = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
-
+    let isDragging = false; let lastMouseX = 0; let lastMouseY = 0;
     function handlePointerDown(e) {
-      // --- 音響初期化処理を削除 ---
       isDragging = true;
       lastMouseX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
       lastMouseY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
     }
-
     function handlePointerMove(e) {
       if (!isDragging) return;
       const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
       const currentY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-
-      const deltaX = currentX - lastMouseX;
-      const deltaY = currentY - lastMouseY;
-
+      const deltaX = currentX - lastMouseX; const deltaY = currentY - lastMouseY;
       lines.forEach((item, index) => {
         const factor = item.sensitivityMult * (0.8 + (index % 3) * 0.2);
-        item.vx += deltaX * 0.2 * factor;
-        item.vy += deltaY * 0.2 * factor;
-        item.angularVel += (Math.random() - 0.5) * 0.04;
+        item.vx += deltaX * 0.2 * factor; item.vy += deltaY * 0.2 * factor; item.angularVel += (Math.random() - 0.5) * 0.04;
       });
-
-      lastMouseX = currentX;
-      lastMouseY = currentY;
+      lastMouseX = currentX; lastMouseY = currentY;
     }
-
-    function handlePointerUp() {
-      isDragging = false;
-    }
-
-    // イベントリスナーの追加
+    function handlePointerUp() { isDragging = false; }
     lines.forEach(item => {
       item.el.addEventListener('pointerdown', handlePointerDown);
       item.el.addEventListener('touchstart', handlePointerDown, { passive: true });
     });
+    window.addEventListener('pointermove', handlePointerMove); window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerup', handlePointerUp); window.addEventListener('touchend', handlePointerUp);
+    // --- (中略) ---
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('touchmove', handlePointerMove, { passive: true });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('touchend', handlePointerUp);
-
-    // 外カメラ（背面カメラ）の起動処理
+    // 外カメラ（背面カメラ）の起動処理（デバッグ機能追加）
     async function startCamera() {
+      // ブラウザがgetUserMediaに対応しているか確認
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('エラー: お使いのブラウザはカメラ機能（getUserMedia）に対応していません。HTTPS環境で実行しているか確認してください。');
+        return;
+      }
+
       try {
         const constraints = {
           audio: false,
-          video: {
-            facingMode: { ideal: "environment" } // 可能なら外カメラを指定
-          }
+          video: { facingMode: { ideal: "environment" } }
         };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         cameraFeed.srcObject = stream;
+        
+        // PCなどで背面カメラがない場合、自動的に前面カメラに切り替わるブラウザもあるが、
+        // 明示的にエラーを特定したい場合は、facingModeを ideal ではなく exact にする等の方法がある（今回はideal）。
       } catch (err) {
-        console.warn("カメラの起動に失敗しました:", err);
-        showError('カメラの起動に失敗しました（権限が拒否されたか非対応です）。');
+        console.error("カメラ起動エラーの詳細:", err);
+        // 具体的なエラーメッセージを表示
+        let friendlyMsg = `カメラの起動に失敗しました。\nエラー名: ${err.name}\nメッセージ: ${err.message}`;
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          friendlyMsg = 'エラー: カメラへのアクセス権限が拒否されました。ブラウザの設定から許可してください。';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          friendlyMsg = 'エラー: 利用可能なカメラが見つかりません（PC等の場合、背面カメラがない可能性があります）。';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          friendlyMsg = 'エラー: カメラにアクセスできません。他のアプリがカメラを使用していないか確認してください。';
+        }
+        showError(friendlyMsg);
       }
     }
 
-    // ボタンタップ時の処理（カメラ・センサーを開始）
     function enableSensor() {
-      // --- 音響初期化処理を削除 ---
       startCamera(); // ボタンタップ時にカメラを起動
 
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -379,36 +271,31 @@
               window.addEventListener('deviceorientation', handleOrientation, true);
               sensorBtn.style.display = 'none';
             } else {
-              showError('センサーアクセスが拒否されました。スワイプ操作のみ有効です。');
+              // showError('センサーアクセスが拒否されました。スワイプ操作のみ有効です。'); // エラーを表示し続けるとカメラのエラーと被るため、今回は表示しない
               sensorBtn.style.display = 'none';
             }
           })
           .catch(() => {
-            showError('センサーの起動に失敗しました。');
+            // showError('センサーの起動に失敗しました。');
             sensorBtn.style.display = 'none';
           });
       } else if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', handleOrientation, true);
         sensorBtn.style.display = 'none';
       } else {
-        showError('傾きセンサー非対応の端末です。');
+        // showError('傾きセンサー非対応の端末です。');
         sensorBtn.style.display = 'none';
       }
     }
 
-    // エラー表示
     function showError(msg) {
       errorMsg.textContent = msg;
       errorMsg.style.display = 'block';
-      setTimeout(() => {
-        errorMsg.style.display = 'none';
-      }, 4000);
+      // 自動で消さない設定に（デバッグのため）
     }
 
     sensorBtn.addEventListener('click', enableSensor);
     window.addEventListener('resize', initPositions);
-
-    // 初期化とアニメーション開始
     initPositions();
     requestAnimationFrame(animate);
   </script>
