@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（カメラ背景版）</title>
+  <title>リアルに転がるシャー芯（カメラ背景・両立版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -15,7 +15,7 @@
     }
 
     body {
-      background-color: #000000;
+      background-color: #000000; /* カメラが映るまでの背景色 */
       height: 100vh;
       width: 100vw;
       overflow: hidden;
@@ -24,17 +24,19 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* カメラ映像を背景いっぱいに配置 */
+    /* カメラ映像を最背面に配置 */
     #camera-feed {
       position: absolute;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      object-fit: cover;
-      z-index: 1;
+      object-fit: cover; /* 画面いっぱいに表示 */
+      z-index: 1; /* 最背面 */
+      pointer-events: none; /* カメラ映像自体への操作を無効化 */
     }
 
+    /* シャー芯を表示するビューポート */
     .viewport {
       position: absolute;
       top: 0;
@@ -42,8 +44,10 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      z-index: 10;
-      pointer-events: none; /* タッチ操作がカメラや背面に抜けないようにしつつ、ライン自体に影響させない */
+      z-index: 10; /* カメラよりも前面に配置 */
+      background: transparent; /* 背景を透明にする */
+      /* このコンテナ自体はイベントを透過させ、シャー芯のみが操作を受け付けるようにする */
+      pointer-events: none; 
     }
 
     .target-line {
@@ -58,6 +62,9 @@
       backface-visibility: hidden;
       will-change: transform, box-shadow;
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.4);
+      /* シャー芯自体への操作（grab）は有効にする */
+      cursor: grab;
+      pointer-events: auto;
     }
 
     .sensor-btn {
@@ -74,7 +81,7 @@
       border-radius: 24px;
       font-size: 14px;
       font-weight: bold;
-      z-index: 100;
+      z-index: 100; /* 最前面 */
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       outline: none;
@@ -101,12 +108,14 @@
 </head>
 <body>
 
-  <!-- 外カメラ映像用のvideo要素 -->
+  <!-- 最背面のカメラ映像 -->
   <video id="camera-feed" autoplay playsinline muted></video>
 
+  <!-- カメラとセンサーを開始するボタン -->
   <button class="sensor-btn" id="sensor-btn">タップしてカメラ・センサー開始</button>
   <div class="error-msg" id="error-msg"></div>
 
+  <!-- 前面のシャー芯レイヤー -->
   <div class="viewport" id="viewport">
     <div class="target-line" id="line1"></div>
     <div class="target-line" id="line2"></div>
@@ -121,12 +130,14 @@
 
     const lineLength = 320;
 
+    // シャー芯の物理パラメータ（元のコードと同じ）
     const lines = [
       { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasVibrated: false },
       { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasVibrated: false },
       { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.45, angularVel: 0.002, friction: 0.92, sensitivityMult: 0.95, driftX:  0.05, driftY:  0.07, hasVibrated: false }
     ];
 
+    // 初期配置（元のコードと同じ）
     function initPositions() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
@@ -149,6 +160,7 @@
     let tiltX = 0;
     let tiltY = 0;
 
+    // 物理挙動定数（元のコードと同じ）
     const baseSensitivity = 0.0055;
     const exponent = 1.6;
     const staticThreshold = 0.18;
@@ -156,6 +168,7 @@
     let audioCtx = null;
     let isAudioUnlocked = false;
 
+    // オーディオ初期化（元のコードと同じ）
     function initAudio() {
       if (isAudioUnlocked) return;
       try {
@@ -175,6 +188,7 @@
       } catch (e) {}
     }
 
+    // 着地音（元のコードと同じ）
     function playLandingSound() {
       if (!audioCtx || audioCtx.state !== 'running') return;
       try {
@@ -196,6 +210,7 @@
       } catch (e) {}
     }
 
+    // フィードバック（元のコードと同じ）
     function triggerLandingFeedback() {
       if ('vibrate' in navigator) {
         try { navigator.vibrate(12); } catch (e) {}
@@ -203,6 +218,7 @@
       playLandingSound();
     }
 
+    // 物理力計算（元のコードと同じ）
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
       if (absTilt <= staticThreshold) return 0;
@@ -210,6 +226,7 @@
       return Math.sign(tilt) * force;
     }
 
+    // アニメーションループ（元のコードと同じ）
     function animate() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
@@ -234,6 +251,7 @@
         let distToEdgeY = 1;
         let isAtEdge = false;
 
+        // 境界判定（元のコードと同じ）
         if (item.posX < minX + dropZone) {
           const ratio = (item.posX - minX) / dropZone;
           distToEdgeX = Math.max(0, Math.min(1, ratio));
@@ -267,6 +285,7 @@
           item.hasVibrated = false;
         }
 
+        // 物理更新（元のコードと同じ）
         item.vx += forceX;
         item.vy += forceY;
 
@@ -285,11 +304,13 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
+        // 画面外リセット（元のコードと同じ）
         if (item.posX < minX) { item.posX = minX; item.vx = 0; }
         if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
         if (item.posY < minY) { item.posY = minY; item.vy = 0; }
         if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
 
+        // シャドウ更新（カメラ背景に合わせて元のコードよりわずかに影を強く）
         const edgeFactor = Math.min(distToEdgeX, distToEdgeY);
         const shadowY = (1 + 3 * edgeFactor).toFixed(1);
         const shadowBlur = (2 + 6 * edgeFactor).toFixed(1);
@@ -297,6 +318,7 @@
 
         item.el.style.boxShadow = `0px ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
 
+        // トランスフォルム適用（元のコードと同じ）
         const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
         const drawAngle = Math.round(item.angle * 1000) / 1000;
@@ -307,6 +329,7 @@
       requestAnimationFrame(animate);
     }
 
+    // 傾き検知（元のコードと同じ）
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
@@ -344,6 +367,7 @@
       tiltY = Math.max(-45, Math.min(45, tiltY));
     }
 
+    // タッチ・ドラッグ操作（元のコードと同じ）
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -378,14 +402,19 @@
       isDragging = false;
     }
 
-    window.addEventListener('pointerdown', handlePointerDown);
+    // イベントリスナーの追加方法（元のコードより、明確にシャー芯にイベントが伝わるように修正）
+    // window ではなく lines 自身にイベントを付与する
+    lines.forEach(item => {
+      item.el.addEventListener('pointerdown', handlePointerDown);
+      item.el.addEventListener('touchstart', handlePointerDown, { passive: true });
+    });
+
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('touchstart', handlePointerDown, { passive: true });
     window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('touchend', handlePointerUp);
 
-    // 外カメラ（背面カメラ）の起動処理
+    // 外カメラ（背面カメラ）の起動処理（前回のコードと同じ）
     async function startCamera() {
       try {
         const constraints = {
@@ -402,6 +431,7 @@
       }
     }
 
+    // ボタンタップ時の処理（カメラ・センサー・オーディオを一括開始）
     function enableSensor() {
       initAudio();
       startCamera(); // ボタンタップ時にカメラを起動
@@ -430,6 +460,7 @@
       }
     }
 
+    // エラー表示（元のコードと同じ）
     function showError(msg) {
       errorMsg.textContent = msg;
       errorMsg.style.display = 'block';
@@ -441,6 +472,7 @@
     sensorBtn.addEventListener('click', enableSensor);
     window.addEventListener('resize', initPositions);
 
+    // 初期化とアニメーション開始
     initPositions();
     requestAnimationFrame(animate);
   </script>
