@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（カメラ背景・両立版）</title>
+  <title>リアルに転がるシャー芯（カメラ背景・消音版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -130,14 +130,14 @@
 
     const lineLength = 320;
 
-    // シャー芯の物理パラメータ（元のコードと同じ）
+    // シャー芯の物理パラメータ
     const lines = [
-      { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasVibrated: false },
-      { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasVibrated: false },
-      { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.45, angularVel: 0.002, friction: 0.92, sensitivityMult: 0.95, driftX:  0.05, driftY:  0.07, hasVibrated: false }
+      { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasFeedbackTriggered: false },
+      { el: document.getElementById('line2'), posX: 0, posY: 0, vx: 0, vy: 0, angle: -0.85, angularVel: -0.002, friction: 0.94, sensitivityMult: 1.12, driftX: -0.07, driftY:  0.09, hasFeedbackTriggered: false },
+      { el: document.getElementById('line3'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 1.45, angularVel: 0.002, friction: 0.92, sensitivityMult: 0.95, driftX:  0.05, driftY:  0.07, hasFeedbackTriggered: false }
     ];
 
-    // 初期配置（元のコードと同じ）
+    // 初期配置
     function initPositions() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
@@ -160,65 +160,14 @@
     let tiltX = 0;
     let tiltY = 0;
 
-    // 物理挙動定数（元のコードと同じ）
+    // 物理挙動定数
     const baseSensitivity = 0.0055;
     const exponent = 1.6;
     const staticThreshold = 0.18;
 
-    let audioCtx = null;
-    let isAudioUnlocked = false;
+    // --- 音響関連の処理を削除 ---
 
-    // オーディオ初期化（元のコードと同じ）
-    function initAudio() {
-      if (isAudioUnlocked) return;
-      try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          audioCtx = new AudioContextClass();
-          if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-          }
-          const buf = audioCtx.createBuffer(1, 1, 22050);
-          const src = audioCtx.createBufferSource();
-          src.buffer = buf;
-          src.connect(audioCtx.destination);
-          src.start(0);
-          isAudioUnlocked = true;
-        }
-      } catch (e) {}
-    }
-
-    // 着地音（元のコードと同じ）
-    function playLandingSound() {
-      if (!audioCtx || audioCtx.state !== 'running') return;
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
-
-        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
-
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.012);
-      } catch (e) {}
-    }
-
-    // フィードバック（元のコードと同じ）
-    function triggerLandingFeedback() {
-      if ('vibrate' in navigator) {
-        try { navigator.vibrate(12); } catch (e) {}
-      }
-      playLandingSound();
-    }
-
-    // 物理力計算（元のコードと同じ）
+    // 物理力計算
     function calculateExponentialForce(tilt) {
       const absTilt = Math.abs(tilt);
       if (absTilt <= staticThreshold) return 0;
@@ -226,7 +175,7 @@
       return Math.sign(tilt) * force;
     }
 
-    // アニメーションループ（元のコードと同じ）
+    // アニメーションループ
     function animate() {
       const screenW = viewport.clientWidth || window.innerWidth;
       const screenH = viewport.clientHeight || window.innerHeight;
@@ -249,43 +198,31 @@
 
         let distToEdgeX = 1;
         let distToEdgeY = 1;
-        let isAtEdge = false;
+        
+        // --- 衝突音・振動のフラグ処理を削除 ---
 
-        // 境界判定（元のコードと同じ）
+        // 境界判定
         if (item.posX < minX + dropZone) {
           const ratio = (item.posX - minX) / dropZone;
           distToEdgeX = Math.max(0, Math.min(1, ratio));
           forceX -= dropGravity * (1 - distToEdgeX);
-          if (distToEdgeX < 0.25) isAtEdge = true;
         } else if (item.posX > maxX - dropZone) {
           const ratio = (maxX - item.posX) / dropZone;
           distToEdgeX = Math.max(0, Math.min(1, ratio));
           forceX += dropGravity * (1 - distToEdgeX);
-          if (distToEdgeX < 0.25) isAtEdge = true;
         }
 
         if (item.posY < minY + dropZone) {
           const ratio = (item.posY - minY) / dropZone;
           distToEdgeY = Math.max(0, Math.min(1, ratio));
           forceY -= dropGravity * (1 - distToEdgeY);
-          if (distToEdgeY < 0.25) isAtEdge = true;
         } else if (item.posY > maxY - dropZone) {
           const ratio = (maxY - item.posY) / dropZone;
           distToEdgeY = Math.max(0, Math.min(1, ratio));
           forceY += dropGravity * (1 - distToEdgeY);
-          if (distToEdgeY < 0.25) isAtEdge = true;
         }
 
-        if (isAtEdge) {
-          if (!item.hasVibrated) {
-            triggerLandingFeedback();
-            item.hasVibrated = true;
-          }
-        } else {
-          item.hasVibrated = false;
-        }
-
-        // 物理更新（元のコードと同じ）
+        // 物理更新
         item.vx += forceX;
         item.vy += forceY;
 
@@ -304,13 +241,13 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
-        // 画面外リセット（元のコードと同じ）
+        // 画面外リセット
         if (item.posX < minX) { item.posX = minX; item.vx = 0; }
         if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
         if (item.posY < minY) { item.posY = minY; item.vy = 0; }
         if (item.posY > maxY) { item.posY = maxY; item.vy = 0; }
 
-        // シャドウ更新（カメラ背景に合わせて元のコードよりわずかに影を強く）
+        // シャドウ更新
         const edgeFactor = Math.min(distToEdgeX, distToEdgeY);
         const shadowY = (1 + 3 * edgeFactor).toFixed(1);
         const shadowBlur = (2 + 6 * edgeFactor).toFixed(1);
@@ -318,7 +255,7 @@
 
         item.el.style.boxShadow = `0px ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
 
-        // トランスフォルム適用（元のコードと同じ）
+        // トランスフォルム適用
         const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
         const drawAngle = Math.round(item.angle * 1000) / 1000;
@@ -329,7 +266,7 @@
       requestAnimationFrame(animate);
     }
 
-    // 傾き検知（元のコードと同じ）
+    // 傾き検知
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
@@ -367,13 +304,13 @@
       tiltY = Math.max(-45, Math.min(45, tiltY));
     }
 
-    // タッチ・ドラッグ操作（元のコードと同じ）
+    // タッチ・ドラッグ操作
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
 
     function handlePointerDown(e) {
-      initAudio();
+      // --- 音響初期化処理を削除 ---
       isDragging = true;
       lastMouseX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
       lastMouseY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
@@ -402,8 +339,7 @@
       isDragging = false;
     }
 
-    // イベントリスナーの追加方法（元のコードより、明確にシャー芯にイベントが伝わるように修正）
-    // window ではなく lines 自身にイベントを付与する
+    // イベントリスナーの追加
     lines.forEach(item => {
       item.el.addEventListener('pointerdown', handlePointerDown);
       item.el.addEventListener('touchstart', handlePointerDown, { passive: true });
@@ -414,7 +350,7 @@
     window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('touchend', handlePointerUp);
 
-    // 外カメラ（背面カメラ）の起動処理（前回のコードと同じ）
+    // 外カメラ（背面カメラ）の起動処理
     async function startCamera() {
       try {
         const constraints = {
@@ -431,9 +367,9 @@
       }
     }
 
-    // ボタンタップ時の処理（カメラ・センサー・オーディオを一括開始）
+    // ボタンタップ時の処理（カメラ・センサーを開始）
     function enableSensor() {
-      initAudio();
+      // --- 音響初期化処理を削除 ---
       startCamera(); // ボタンタップ時にカメラを起動
 
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -460,7 +396,7 @@
       }
     }
 
-    // エラー表示（元のコードと同じ）
+    // エラー表示
     function showError(msg) {
       errorMsg.textContent = msg;
       errorMsg.style.display = 'block';
