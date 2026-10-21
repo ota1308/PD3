@@ -294,29 +294,47 @@
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
-      let g = event.gamma;
-      let b = event.beta;
+      // 1. 本体基準の重力ベクトル算出（角度・姿勢）
+      const betaRad = (event.beta || 0) * (Math.PI / 180);
+      const gammaRad = (event.gamma || 0) * (Math.PI / 180);
 
-      let orientationAngle = 0;
-      if (screen.orientation && screen.orientation.angle !== undefined) {
-        orientationAngle = screen.orientation.angle;
-      } else if (typeof window.orientation !== 'undefined') {
-        orientationAngle = window.orientation;
+      let deviceX = Math.sin(gammaRad) * Math.cos(betaRad) * 45;
+      let deviceY = Math.sin(betaRad) * 45;
+
+      // 2. 画面の縦横比（アスペクト比）から「実際の見た目の画面向き」を確実に算出
+      let screenAngle = 0;
+      if (window.innerWidth > window.innerHeight) {
+        screenAngle = 90; // 横画面
+      } else {
+        screenAngle = 0;  // 縦画面
       }
 
-      // 画面の角度に合わせて回転行列（三角関数）を使い、iPadやiPhoneなど端末の種類や回転状態を考慮した正確なベクトルの変換を行う
-      const rad = (orientationAngle * Math.PI) / 180;
-      const cosA = Math.cos(rad);
-      const sinA = Math.sin(rad);
+      // 3. 画面の見た目の向きに合わせて重力方向を座標変換
+      let rawX = 0;
+      let rawY = 0;
 
-      let rawX = g * cosA - b * sinA;
-      let rawY = b * cosA + g * sinA;
+      switch (screenAngle) {
+        case 90:
+          rawX = deviceY;
+          rawY = -deviceX;
+          break;
+        case -90:
+        case 270:
+          rawX = -deviceY;
+          rawY = deviceX;
+          break;
+        case 180:
+          rawX = -deviceX;
+          rawY = -deviceY;
+          break;
+        default:
+          rawX = deviceX;
+          rawY = deviceY;
+          break;
+      }
 
-      tiltX = rawX;
-      tiltY = rawY;
-
-      tiltX = Math.max(-45, Math.min(45, tiltX));
-      tiltY = Math.max(-45, Math.min(45, tiltY));
+      tiltX = Math.max(-45, Math.min(45, rawX));
+      tiltY = Math.max(-45, Math.min(45, rawY));
     }
 
     let isDragging = false;
