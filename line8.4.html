@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <title>リアルに転がるシャー芯（流れ落ちる無限追加版）</title>
+  <title>リアルに転がるシャー芯（超大量・画面外スポーン版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -46,7 +46,7 @@
       backface-visibility: hidden;
       will-change: transform, box-shadow;
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
-      display: none; /* 動的に生成・表示するため初期は非表示 */
+      display: none;
     }
 
     .sensor-btn {
@@ -91,7 +91,6 @@
   <button class="sensor-btn" id="sensor-btn">タップして開始（傾きセンサー）</button>
   <div class="error-msg" id="error-msg"></div>
 
-  <!-- シャー芯を動的に生成するためのコンテナ -->
   <div class="viewport" id="viewport"></div>
 
   <script>
@@ -102,7 +101,7 @@
     const lineLength = 320;
     const lines = [];
 
-    // シャー芯を1つ作成して追加する関数
+    // シャー芯を作成（完全に画面外から出現させる）
     function createLead(isInitial = false, initX = 0, initY = 0, initAngle = 0) {
       const el = document.createElement('div');
       el.className = 'target-line';
@@ -118,25 +117,26 @@
         posY = initY;
         angle = initAngle;
       } else {
-        // 画面外（上下左右のいずれか）からランダムに出現させる
+        // 芯の長さ(320px)を完全にカバーできるよう、十分画面から離れた位置(外枠)を計算
+        const offset = lineLength / 2 + 50; 
         const side = Math.floor(Math.random() * 4);
-        const margin = -50;
+        
         switch (side) {
-          case 0: // 上から
-            posX = Math.random() * screenW;
-            posY = margin;
+          case 0: // 上の外枠から
+            posX = -offset + Math.random() * (screenW + offset * 2);
+            posY = -offset;
             break;
-          case 1: // 下から
-            posX = Math.random() * screenW;
-            posY = screenH - margin;
+          case 1: // 下の外枠から
+            posX = -offset + Math.random() * (screenW + offset * 2);
+            posY = screenH + offset;
             break;
-          case 2: // 左から
-            posX = margin;
-            posY = Math.random() * screenH;
+          case 2: // 左の外枠から
+            posX = -offset;
+            posY = -offset + Math.random() * (screenH + offset * 2);
             break;
-          case 3: // 右から
-            posX = screenW - margin;
-            posY = Math.random() * screenH;
+          case 3: // 右の外枠から
+            posX = screenW + offset;
+            posY = -offset + Math.random() * (screenH + offset * 2);
             break;
         }
         angle = (Math.random() - 0.5) * Math.PI * 2;
@@ -148,23 +148,23 @@
         el: el,
         posX: posX,
         posY: posY,
-        vx: (Math.random() - 0.5) * 0.2,
-        vy: (Math.random() - 0.5) * 0.2,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
         angle: angle,
-        angularVel: (Math.random() - 0.5) * 0.002,
+        angularVel: (Math.random() - 0.5) * 0.003,
         friction: 0.92 + Math.random() * 0.03,
-        sensitivityMult: 0.85 + Math.random() * 0.3,
-        driftX: (Math.random() - 0.5) * 0.12,
-        driftY: (Math.random() - 0.5) * 0.12,
+        sensitivityMult: 0.85 + Math.random() * 0.35,
+        driftX: (Math.random() - 0.5) * 0.15,
+        driftY: (Math.random() - 0.5) * 0.15,
         hasVibrated: false
       };
 
       lines.push(line);
     }
 
-    // 初期配置（5本を中央にまとめる）
+    // 初期配置（5本）
     function initPositions() {
-      viewport.innerHTML = ''; // リセット
+      viewport.innerHTML = '';
       lines.length = 0;
 
       const screenW = viewport.clientWidth || window.innerWidth;
@@ -222,7 +222,7 @@
         osc.frequency.setValueAtTime(1600, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.012);
 
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
 
         osc.connect(gain);
@@ -235,7 +235,7 @@
 
     function triggerLandingFeedback() {
       if ('vibrate' in navigator) {
-        try { navigator.vibrate(10); } catch (e) {}
+        try { navigator.vibrate(8); } catch (e) {}
       }
       playLandingSound();
     }
@@ -256,12 +256,12 @@
       const baseForceX = calculateExponentialForce(tiltX);
       const baseForceY = calculateExponentialForce(tiltY);
 
-      // 端末が傾けられている（一定以上の力がかかっている）場合、一定間隔で新しい芯を降らせる
+      // 傾きに応じて大量に出現させる処理
       const totalTiltMagnitude = Math.hypot(baseForceX, baseForceY);
       if (totalTiltMagnitude > 0.0001) {
         spawnTimer++;
-        // 芯が多すぎても重くなるため上限を50本程度にしつつ、傾きの強さに応じて追加
-        if (spawnTimer > 35 && lines.length < 50) {
+        // スポーン間隔を速くし（約10フレームごと）、上限を200本まで拡大
+        if (spawnTimer > 10 && lines.length < 200) {
           createLead(false);
           spawnTimer = 0;
         }
@@ -335,7 +335,6 @@
         item.posX += item.vx;
         item.posY += item.vy;
 
-        // 画面外の壁で止まる（画面内に残る仕様）
         if (item.posX < minX) { item.posX = minX; item.vx = 0; }
         if (item.posX > maxX) { item.posX = maxX; item.vx = 0; }
         if (item.posY < minY) { item.posY = minY; item.vy = 0; }
@@ -358,7 +357,6 @@
       requestAnimationFrame(animate);
     }
 
-    // iPad等のどの向きでも正確に動くアスペクト比ベースの傾き変換
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
