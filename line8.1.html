@@ -108,19 +108,7 @@
     const sensorBtn = document.getElementById('sensor-btn');
     const errorMsg = document.getElementById('error-msg');
 
-    // iPadなどの大画面でもiPhoneと同じ物理サイズ感になるようスケーリングを計算
-    const baseDeviceWidth = 390; // iPhoneの一般的な基準幅
-    const currentDeviceWidth = window.innerWidth > window.innerHeight ? window.innerHeight : window.innerWidth;
-    // タブレット等で画面が大きい場合、要素サイズを少し調整してiPhoneと見栄えを合わせる
-    const scaleFactor = currentDeviceWidth > 600 ? (390 / currentDeviceWidth) * 1.3 : 1;
-
-    const lineLength = Math.round(320 * scaleFactor);
-
-    // 要素のCSS上のサイズもスケールに合わせる
-    document.querySelectorAll('.target-line').forEach(el => {
-      el.style.width = lineLength + 'px';
-      el.style.height = Math.max(2, Math.round(3 * scaleFactor)) + 'px';
-    });
+    const lineLength = 320;
 
     const lines = [
       { el: document.getElementById('line1'), posX: 0, posY: 0, vx: 0, vy: 0, angle: 0.12, angularVel: 0.001, friction: 0.93, sensitivityMult: 0.88, driftX:  0.08, driftY: -0.05, hasVibrated: false },
@@ -146,7 +134,7 @@
         const angleOffset = index * 0.6;
         const radius = (index * 4) + (Math.random() - 0.5) * 15;
         
-        item.posX = centerX + Math.cos(angleOffset) * radius - (lineLength / 2);
+        item.posX = centerX + Math.cos(angleOffset) * radius;
         item.posY = centerY + Math.sin(angleOffset) * radius + (index - 5) * 6;
         
         item.vx = (Math.random() - 0.5) * 0.2;
@@ -305,7 +293,7 @@
 
         item.el.style.boxShadow = `0px ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
 
-        const drawX = Math.round(item.posX);
+        const drawX = Math.round(item.posX - lineLength / 2);
         const drawY = Math.round(item.posY);
         const drawAngle = Math.round(item.angle * 1000) / 1000;
 
@@ -358,7 +346,6 @@
       tiltY = Math.max(-45, Math.min(45, rawY));
     }
 
-    // タッチやクリックではシャー芯を動かさず、音声のアンロックのみ行うように変更
     function handleTouchStart() {
       initAudio();
     }
