@@ -46,7 +46,6 @@
       backface-visibility: hidden;
       will-change: transform, box-shadow;
       box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.3);
-      cursor: grab;
     }
 
     .sensor-btn {
@@ -88,7 +87,7 @@
 </head>
 <body>
 
-  <button class="sensor-btn" id="sensor-btn">タップして開始（傾き / タッチ操作）</button>
+  <button class="sensor-btn" id="sensor-btn">タップして開始（傾きセンサー）</button>
   <div class="error-msg" id="error-msg"></div>
 
   <div class="viewport" id="viewport">
@@ -122,7 +121,7 @@
         const angleOffset = index * 1.2;
         const radius = (index * 6) + (Math.random() - 0.5) * 10;
         
-        item.posX = centerX + Math.cos(angleOffset) * radius - 20;
+        item.posX = centerX + Math.cos(angleOffset) * radius;
         item.posY = centerY + Math.sin(angleOffset) * radius + (index - 1) * 12;
         
         item.vx = (Math.random() - 0.5) * 0.2;
@@ -294,22 +293,19 @@
     function handleOrientation(event) {
       if (event.gamma === null || event.beta === null) return;
 
-      // 1. 本体基準の重力ベクトル算出（角度・姿勢）
       const betaRad = (event.beta || 0) * (Math.PI / 180);
       const gammaRad = (event.gamma || 0) * (Math.PI / 180);
 
       let deviceX = Math.sin(gammaRad) * Math.cos(betaRad) * 45;
       let deviceY = Math.sin(betaRad) * 45;
 
-      // 2. 画面の縦横比（アスペクト比）から「実際の見た目の画面向き」を確実に算出
       let screenAngle = 0;
       if (window.innerWidth > window.innerHeight) {
-        screenAngle = 90; // 横画面
+        screenAngle = 90;
       } else {
-        screenAngle = 0;  // 縦画面
+        screenAngle = 0;
       }
 
-      // 3. 画面の見た目の向きに合わせて重力方向を座標変換
       let rawX = 0;
       let rawY = 0;
 
@@ -337,46 +333,13 @@
       tiltY = Math.max(-45, Math.min(45, rawY));
     }
 
-    let isDragging = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
-
-    function handlePointerDown(e) {
+    // タッチやスワイプでシャー芯を動かさず、音声を有効化するためだけに利用
+    function handleTouchStart() {
       initAudio();
-      isDragging = true;
-      lastMouseX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-      lastMouseY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
     }
 
-    function handlePointerMove(e) {
-      if (!isDragging) return;
-      const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-      const currentY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-
-      const deltaX = currentX - lastMouseX;
-      const deltaY = currentY - lastMouseY;
-
-      lines.forEach((item, index) => {
-        const factor = item.sensitivityMult * (0.8 + (index % 3) * 0.2);
-        item.vx += deltaX * 0.2 * factor;
-        item.vy += deltaY * 0.2 * factor;
-        item.angularVel += (Math.random() - 0.5) * 0.04;
-      });
-
-      lastMouseX = currentX;
-      lastMouseY = currentY;
-    }
-
-    function handlePointerUp() {
-      isDragging = false;
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('touchstart', handlePointerDown, { passive: true });
-    window.addEventListener('touchmove', handlePointerMove, { passive: true });
-    window.addEventListener('touchend', handlePointerUp);
+    window.addEventListener('pointerdown', handleTouchStart);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
 
     function enableSensor() {
       initAudio();
@@ -388,7 +351,7 @@
               window.addEventListener('deviceorientation', handleOrientation, true);
               sensorBtn.style.display = 'none';
             } else {
-              showError('センサーアクセスが拒否されました。スワイプ操作のみ有効です。');
+              showError('センサーアクセスが拒否されました。');
             }
           })
           .catch(() => {
